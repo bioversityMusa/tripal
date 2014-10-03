@@ -21,7 +21,7 @@ function tripal_set_toc_pane($node_type, $key, $settings) {
     tripal_report_error('tripal_toc', TRIPAL_ERROR, 'tripal_set_toc_pane: $settings array must have a valid title');
     return FALSE;
   }
-  // TODO: make sure the key is a valid key
+  // TODO: make sure the key is a valid key.
   // TODO: make sure 'hide' is only 0 or 1 and nothing else.
   // TODO: make sure the weight is numeric (positive or negative).
   
