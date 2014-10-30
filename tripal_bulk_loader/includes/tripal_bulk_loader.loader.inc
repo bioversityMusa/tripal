@@ -138,10 +138,10 @@ function tripal_bulk_loader_add_loader_job_form_submit($form, $form_state) {
  */
 function tripal_bulk_loader_load_data($nid, $job_id) {
 
-  // ensure no timeout
+  // Ensure no timeout.
   drupal_set_time_limit(0);
 
-  // set the status of the job (in the node not the tripal jobs)
+  // Set the status of the job (in the node not the tripal jobs).
   db_update('tripal_bulk_loader')
     ->fields(array('job_status' => 'Loading...'))
     ->condition('nid', $nid)
@@ -156,38 +156,153 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
   //print "\nClearing all prepared statements from previous runs of this loader...\n";
   //tripal_core_chado_clear_prepared('_'.$node->nid.'_');
 
-  // Prep Work ==================================================================================
+  /*
+   * Prep Work
+   */
   print "\nPreparing to load...\n";
   $loaded_without_errors = TRUE;
-
-  // Generate default values array
-  $default_data = array();
-  $field2column = array();
-  $record2priority = array();
-  $tables = array();
+  
+  
+  /* The template array is stored in the tripal_bulk_loader_template_table
+   * as a serialized PHP array and when unserialized is of the format:
+   *   array(
+   *     0 => array(
+   *       'table' => <the chado table on which the record acts.
+   *       'record_id' => <alpha numeric unique name for the record>',
+   *       'mode' => {insert|select|select_once|update},
+   *       'select_if_duplicate' => {0|1},
+   *       'update_if_duplicate' => {0|1},
+   *       'select_optional' => {0|1},
+   *       'disable' => {0|1},  
+   *       'optional' => {0|},
+   *       
+   *       // There are three types of fields: table field, constant and 
+   *       // foreign key. An example of each is provided below.
+   *       'fields' => array(
+   *         0 => array(
+   *           'type' => table field,
+   *           'title' => <The user readable title of the field>,
+   *           'field' => <The true field name in the table>,
+   *           'spreadsheet column' => <integer value for column in file>
+   *           'required' => {0|1},
+   *           'exposed' => {0|1},
+   *           'exposed description' => <Instructions to user if exposed == 1>,
+   *         ),
+   *         1 => array(
+   *           'type' => 'constant',
+   *           'title' => <The user readable title of the field>,
+   *           'field' => <The true field name in the table>,
+   *           'required' => {0|1},
+   *           'constant value' => <The value that should be used> if not exposed>,
+   *           'exposed' => {0|1},
+   *           'exposed description' => <Instructions to user if exposed == 1>,
+   *         ),
+   *         2 => array(
+   *           'type' => 'foreign key',
+   *           'title' => <The user readable title of the field>,
+   *           'field' => <The true field name in the table>,
+   *           'show_all_records' => {0|1},
+   *           'foreign key' => <The human readable name for this FK>,
+   *           'foreign field' => <The field of this FK record>,
+   *           'required' => 1,
+   *         )
+   *       ),
+   *     ),
+   *     <etc... repeat for each record ...>
+   *   )
+   */
   $template_array = $node->template->template_array;
 
-  // first build the record2priority array
+  /* The $field2column array contains the list of fields that map to columns
+   * in the input file.  The format is three-dimensional with the first key
+   * being the record number, the second being the field name and the final
+   * value being the column in the input file.
+   *   array(
+   *     0 => array (
+   *       <field 1> => <file col #>,
+   *       <field 2> => <file col #>,
+   *     ),
+   *   ),
+   *   etc....
+   */
+  $field2column = array();
+  
+  /* The $record2priority array allows for quick lookup of each record's order
+   * in the bulk loader template. The "priority" is the ordering of the records. 
+   * It is simply a key/value pair where the key is the record ID (or human
+   * readable record_id from the $template_array, and the value is the 
+   * order it should be handled.
+   */
+  $record2priority = array();
   foreach ($template_array as $priority => $record_array) {
     $record2priority[$record_array['record_id']] = $priority;
   }
-
-  //
+  
+  /* The $tables array is used to keep track of locks on tables. It simply 
+   * a key/value where the key is the table name and the value is the
+   * record.
+   */
+  $tables = array();
   foreach ($template_array as $priority => $record_array) {
-    if (!is_array($record_array)) {
-      continue;
-    }
-
     // Add tables being inserted into to a list to be treated differently
     // this is used to acquire locks on these tables
     if (preg_match('/insert/', $record_array['mode'])) {
       $tables[$record_array['table']] = $record_array['table'];
     }
+  }
+  
+  /* The $default_data array is used to store the default values needed for
+   * each record.  This array is populated with values in the for loop below,
+   * but values can be added if the template uses a 'select_once' mode. For
+   * those records, the value is selected from the database and added to
+   * this array.  The format of this array is as follows:
+   *   array (
+   *     0 => array(
+   *        <copy of record details>
+   *        'required' => array(
+   *           <field> => {0|1}
+   *        ),
+   *        'delimiter' => <optional delimiter>,
+   *        'regex_transform' => array(
+   *          <field> => <regex>
+   *        ),
+   *        // The values array should be of the same form used by the
+   *        // chado_select() function.
+   *        'values_array' => array(
+   *          <field> => <value>, // if type == 'constant'
+   *          <field> => array(   // if type == 'foreign key'
+   *            'foreign record' => array(
+   *              'record' => <human readable foreign key record name>
+   *              'table' => <the table name used in the FK relationship> 
+   *              'field' => <the field name used in the FK table>
+   *            ), 
+   *          ),
+   *        ),
+   *        'need_further_processing' => {TRUE|FALSE} // TRUE if not constant.
+   *        <field> => <spreadsheet column> // present if type == 'table field'
+   *        'delimiters' => array(
+   *          <field> => <delimiter>
+   *        ),
+   *     )
+   *     etc...
+   *   )
+   */
+  $default_data = array();
 
-    // iterate through each of the fiels for the current record and
+  // Iterate through the template array and populate the default data array. 
+  foreach ($template_array as $priority => $record_array) {
+    
+    // If the entry in the $record_array is not an array then something 
+    // isn't quite right so skip it.
+    if (!is_array($record_array)) {
+      continue;
+    }
+    
+    // iterate through each of the fields for the current record and
     // set the default_data array
     foreach ($record_array['fields'] as $field_index => $field_array) {
 
+      // Copy details about the record from from the record array
       $default_data[$priority]['table'] = $record_array['table'];
       $default_data[$priority]['mode'] = ($record_array['mode']) ? $record_array['mode'] : 'insert';
       $default_data[$priority]['select_if_duplicate'] = ($record_array['select_if_duplicate']) ? $record_array['select_if_duplicate'] : 0;
@@ -196,24 +311,30 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
       $default_data[$priority]['optional'] = ($record_array['optional']) ? $record_array['optional'] : 0;
       $default_data[$priority]['select_optional'] = ($record_array['select_optional']) ? $record_array['select_optional'] : 0;
       $default_data[$priority]['record_id'] = $record_array['record_id'];
+      
+      // Create the 'required' array:
       $default_data[$priority]['required'][$field_array['field']] = $field_array['required'];
-
-      $one = $default_data[$priority];
+      
+      // Create the 'regex_transform' array:
       if (isset($field_array['regex'])) {
         $default_data[$priority]['regex_transform'][$field_array['field']] = $field_array['regex'];
       }
-
-      $two = $default_data[$priority];
-
+      
+      // Build the 'values_array' differently depending on the type of field
+      // (e.g. constant, table field, or foreign key)
       if (preg_match('/table field/', $field_array['type'])) {
         $default_data[$priority]['values_array'][$field_array['field']] = '';
         $default_data[$priority]['need_further_processing'] = TRUE;
         $field2column[$priority][$field_array['field']] = $field_array['spreadsheet column'];
-
+        
+        // Add in field delimiters. There should be no more than one field
+        // per record with a delimiter.
+        if ($field_array['delimiter']) {
+          $default_data[$priority]['delimiters'][$field_array['field']] = $field_array['delimiter'];
+        }
       }
       elseif (preg_match('/constant/', $field_array['type'])) {
         $default_data[$priority]['values_array'][$field_array['field']] = $field_array['constant value'];
-
       }
       elseif (preg_match('/foreign key/', $field_array['type'])) {
         $default_data[$priority]['values_array'][$field_array['field']] = array();
@@ -246,14 +367,15 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
       else {
         print 'WARNING: Unsupported type: ' . $field_array['type'] . ' for ' . $table . '.' . $field_array['field'] . "!\n";
       }
-      $three = $default_data[$priority];
+    } // End: foreach ($record_array['fields'] as $field_index => $field_array) { ...
+  } // End: foreach ($template_array as $priority => $record_array) { ...
 
-    } // end of foreach field
-  } //end of foreach record
-
-  ///////////////////////////////////////////////
-  // For each set of constants
-  ///////////////////////////////////////////////
+  /*
+   * Now, load the template file, once for each set of constants.
+   * 
+   * The constants and values provided by the user in the exposed fields come 
+   * as values of the node.
+   */
   print "Loading...\n";
   $original_default_data = $default_data;
   $group_index = 0;
@@ -266,12 +388,15 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
     );
     $total_num_groups = 1;
   }
+  
+  // Iterate through each constant set.
   foreach ($node->constants as $group_id => $set) {
-    // revert default data array for next set of constants
+    
+    // Revert default data array for next set of constants.
     $default_data = $original_default_data;
     $group_index++;
 
-    // Add constants
+    // Add constants to the default values array.
     if (!empty($set)) {
       print "Constants:\n";
       foreach ($set as $priority => $record) {
@@ -281,9 +406,16 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
 
           if ($default_data[$priority]['table'] == $field['chado_table']) {
             if (isset($default_data[$priority]['values_array'][$field['chado_field']])) {
+             
+              // If the field is expected to come from the input file and the
+              // field was exposed the user should have provided the actual
+              // column number for the field.  Get that and updated the 
+              // $field2column array.
               if (isset($field2column[$priority][$field['chado_field']])) {
                 $field2column[$priority][$field['chado_field']] = $field['value'];
               }
+              // Otherwise, just add the value provided by the user as a 
+              // constant default value in the $default_data array.
               else {
                 $default_data[$priority]['values_array'][$field['chado_field']] = $field['value'];
               }
@@ -315,7 +447,7 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
       return;
     }
 
-    // Set defaults
+    // Set defaults in variables used for iterating through the file.
     $header = '';
     if (preg_match('/(t|true|1)/', $node->file_has_header)) {
       $file->next();
@@ -329,7 +461,7 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
       $interval = 1;
     }
 
-    // Start Transaction
+    // Start Transaction.
     $savepoint = '';
     switch (variable_get('tripal_bulk_loader_transactions', 'row')) {
       case "none":
@@ -347,7 +479,7 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
         break;
     }
 
-    // Disable triggers
+    // Disable triggers.
     $triggers_disabled = FALSE;
     if ($transactions AND variable_get('tripal_bulk_loader_disable_triggers', TRUE)) {
       print "\t\tDefer Constraints...\n";
@@ -355,7 +487,7 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
       chado_query("SET CONSTRAINTS ALL DEFERRED");
     }
 
-    // Acquire Locks
+    // Acquire Locks.
     if ($transactions) {
       print "\t\tAcquiring Table Locks...\n";
       $lockmode = variable_get('tripal_bulk_loader_lock', 'ROW EXCLUSIVE');
@@ -368,12 +500,17 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
     print "\tLoading the current constant set...\n";
     tripal_bulk_loader_progress_bar(0, $total_lines);
     while (!$file->eof()) {
+      // Get the next line of the file.
       $file->next();
       $raw_line = $file->current();
       $raw_line = trim($raw_line);
+
+      // Skip blank lines.
       if (empty($raw_line)) {
         continue;
-      } // skips blank lines
+      }
+
+      // Separate the file columns using a tab delimiter.
       $line = explode("\t", $raw_line);
       $num_lines++;
 
@@ -384,22 +521,30 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
         $group_progress = round(($num_lines / $total_lines) * 100);
         tripal_bulk_loader_progress_bar($num_lines, $total_lines);
 
-        // percentage of lines processed for all groups
+        // Percentage of lines processed for all groups
         // <previous group index> * 100 + <current group progress>
         // --------------------------------------------------------
         //               <total number of groups>
         // For example, if you were in the third group of 3 constant sets
         // and had a group percentage of 50% then the job progress would be
-        // (2*100 + 50%) / 3 = 250%/3 = 83%
+        // (2*100 + 50%) / 3 = 250%/3 = 83%.
         $job_progress = round(((($group_index - 1) * 100) + $group_progress) / $total_num_groups);
         tripal_set_job_progress($node->job_id, $job_progress);
       }
 
+      // Set the $data array to the defaults.  This is the array that will
+      // contain the final values after retreiving from the file or 
+      // pulling data from FK relationships or other records.
       $data = $default_data;
 
-      // iterate through each record and process the line
+      // Process this line of input by iterating through each record in order.
+      // Each record can then perform the action necessary using the data
+      // retreived from the file.
       $data_keys = array_keys($data);
       foreach ($data_keys as $priority) {
+        
+        // Create the $options array. This array is passed to the 
+        // tripal_bulk_loader_process_data_array_for_line and contains all the needed information.
         $options = array(
           'field2column' => $field2column,
           'record2priority' => $record2priority,
@@ -410,20 +555,24 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
           'nid' => $node->nid,
         );
 
-
-        // execute all records that are not disabled
+        // If the record is not diabled then process it.  Processing a record
+        // retreives the data from the file or database and performs the
+        // action as specified in the template.
         $no_errors = FALSE;
         if (array_key_exists($priority, $data) and
             array_key_exists('disabled', $data[$priority]) and
             $data[$priority]['disabled'] == 0) {
-          $no_errors = process_data_array_for_line($priority, $data, $default_data, $options);
+          $no_errors = tripal_bulk_loader_process_data_array_for_line($priority, $data, $default_data, $options);
         }
+        // Else, set status to true for skipped records.
         else {
-          // set status to true for skipped records
           $no_errors = TRUE;
         }
 
+        // Set the loading progress bar.
         tripal_bulk_loader_progress_file_track_job($job_id, $no_errors);
+        
+        // If an error occured then rollback the transaction and quit.
         $failed = FALSE;
         if ($no_errors == FALSE) {
           // Encountered an error
@@ -433,7 +582,7 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
           tripal_bulk_loader_finish_loading($node->nid, FALSE);
           break;
         }
-      } // end of foreach table in default data array
+      } // End: foreach ($data_keys as $priority) { ...
 
       tripal_bulk_loader_progress_file_track_job($job_id, FALSE, TRUE);
 
@@ -443,16 +592,16 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
         break;
       }
       else {
-        // Row inserted successfully
+        // Row inserted successfully.
         if ($transactions && $new_transaction_per_row) {
           // commit current transaction and start a new one
           unset($TRANSACTION);
           $TRANSACTION = db_transaction();
         }
       }
-    } //end of foreach line of file
+    } // End: while (!$file->eof()) { ...
 
-    // END Transaction
+    // End the transaction.
     if ($transactions) {
       unset($TRANSACTION);
     }
@@ -463,24 +612,34 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
     }
     tripal_bulk_loader_progress_bar($total_lines, $total_lines);
     tripal_bulk_loader_progress_file_track_job($job_id, FALSE, FALSE, TRUE);
-  } //end of foreach constant set
+  } // End: foreach ($node->constants as $group_id => $set) { ...
 
   tripal_bulk_loader_finish_loading($node->nid, $loaded_without_errors);
 
 }
 
 /**
- * Process the data array for a given line
+ * Process the data array for a given line.
+ * 
+ * Retreives data from the spreadsheet, database or previously processed reocrd
+ * and performs the action (e.g. insert, select, upate).
  *
+ * @param $priority
+ *   The numeric 'priority' or order of the record being processed
+ * @param $data
+ *   The data array (same structure as the $default_data array) that provides
+ *   all information about the record including the values.
+ * @param $default_data
+ *   The original data array containing the initial constants. It is identical
+ *   in structure to the $data array.
  * @param $addt
- *   Requires: field2column', 'record2priority', 'line', 'line_num',
- *   'group_index', 'node', 'nid'
+ *   Options describing how to retreive data. Required keys: field2column', 
+ *   'record2priority', 'line', 'line_num', 'group_index', 'node', 'nid'
  *
  * @ingroup tripal_bulk_loader
  */
-function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
-//$time_start = microtime(true);
-
+function tripal_bulk_loader_process_data_array_for_line($priority, &$data, &$default_data, $addt) {
+  // $time_start = microtime(true);
   $table_data = $data[$priority];
   $addt = (object) $addt;
   $no_errors = TRUE;
@@ -488,21 +647,26 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
   $table = $table_data['table'];
   $values = $table_data['values_array'];
 
-  // populate the values array with real value either from the input data file line
-  // or from the foreign key / referral record
+  // Populate the values array with real values either from the input data file
+  // line or from the foreign key / referral record.
   if (array_key_exists('need_further_processing', $table_data) and $table_data['need_further_processing']) {
+    // If this field's value should come from a column in the input file then retreive it
     if (array_key_exists($priority, $addt->field2column)) {
       $values = tripal_bulk_loader_add_spreadsheetdata_to_values($values, $addt->line, $addt->field2column[$priority]);
     }
+    // After adding in any spreadsheet values we now need to add in any 
+    // record referral data.
     $values = tripal_bulk_loader_add_foreignkey_to_values($table_data, $values, $data, $addt->record2priority, $addt->nid, $priority, $default_data);
   }
 
+  // Now execute and regular expressions that need to be applied.
   $values = tripal_bulk_loader_regex_tranform_values($values, $table_data, $addt->line);
+
   if (!$values) {
-    //tripal_bulk_loader_throw_error('Line ' . $addt->line_num . ' Regex:<pre>' . print_r($values, TRUE) . print_r($table_data, TRUE) . '</pre>' . '</pre>', array(), TRIPAL_NOTICE);
+    // tripal_bulk_loader_throw_error('Line ' . $addt->line_num . ' Regex:<pre>' . print_r($values, TRUE) . print_r($table_data, TRUE) . '</pre>' . '</pre>', array(), TRIPAL_NOTICE);
   }
 
-  // get the table description
+  // Get the table description.
   $table_desc = chado_get_schema($table);
   if (!$table_desc) {
     $msg = "Tripal does not know about the table named '%table'. If this is a custom table,
@@ -513,8 +677,8 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
   }
 
   // Check that template required fields are present. if a required field is
-  // missing and this
-  // is an optional record then just return. otherwise raise an error
+  // missing and this is an optional record then just return. Otherwise, raise 
+  // an error.
   $skip_optional = 0;
   foreach ($table_data['required'] as $field => $required) {
     if ($required) {
@@ -542,9 +706,9 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     }
   }
 
-  // for an insert, check that all database required fields are present in the values array
+  // For an insert, check that all database required fields are present in the values array
   // we check for 'optional' in the mode for backwards compatibility. The 'optional'
-  // mode used to be a type of insert
+  // mode used to be a type of insert.
   if (!$skip_optional and (preg_match('/insert/', $table_data['mode']) or
        preg_match('/optional/', $table_data['mode']))) {
     // Check all database table required fields are set
@@ -565,16 +729,17 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     }
   }
 
-  // add updated values array into the data array
+  // Add updated values array into the data array.
   $data[$priority]['values_array'] = $values;
 
-  // if there was an error already -> don't insert
+  // If there was an error already -> don't insert.
   if (array_key_exists('error', $data[$priority]) and $data[$priority]['error']) {
-    tripal_bulk_loader_throw_error('Skipping processing of %table due to previous errors',array('%table'=>$table),TRIPAL_NOTICE);
+    tripal_bulk_loader_throw_error('Skipping processing of %table due to previous errors',
+      array('%table' => $table), TRIPAL_NOTICE);
     return $no_errors;
   }
 
-  // skip optional fields
+  // Skip optional fields.
   if ($skip_optional) {
     // SPF -- Commented out the following line.  This state is intentional due
     // to the loader setup and and is not an error.  If informational it 
@@ -583,7 +748,7 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     return $no_errors;
   }
 
-  // check if it is already inserted
+  // Check if it is already inserted.
   if (array_key_exists('inserted', $table_data) and $table_data['inserted']) {
     // SPF -- Commented out the following line.  This state is intentional due
     // to the loader setup and and is not an error.  If informational it 
@@ -592,8 +757,8 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     return $no_errors;
   }
 
-  // check if it is already selected, if so, just get the value stored in
-  // the default_data array
+  // Check if it is already selected, if so, just get the value stored in
+  // the default_data array.
   if (array_key_exists('selected', $table_data) and $table_data['selected']) {
     $data[$priority]['values_array'] = $default_data[$priority]['values_array'];
     // SPF -- Commented out the following line.  This state is intentional due
@@ -603,7 +768,8 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     return $no_errors;
   }
 
-  // make sure we have some value in the select_if_duplicate and update_if_duplicate options
+  // Make sure we have some value in the select_if_duplicate and 
+  // update_if_duplicate options
   if (!array_key_exists('select_if_duplicate', $table_data)) {
     $table_data['select_if_duplicate'] = 0;
   }
@@ -611,9 +777,10 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     $table_data['update_if_duplicate'] = 0;
   }
 
-  // if "select if duplicate" is enabled then check to ensure unique constraint is not violated.
-  // If it is violated then simply return, the record already exists in the database.
-  // We check for "insert_unique" for backwards compatibilty but that mode no longer exists
+  // If "select if duplicate" is enabled then check to ensure unique constraint 
+  // is not violated. If it is violated then simply return, the record already
+  // exists in the database. We check for "insert_unique" for backwards 
+  // compatibilty but that mode no longer exists.
   $data[$priority]['is_duplicate'] = 0;
   if (preg_match('/insert_unique/', $table_data['mode']) or
      $table_data['select_if_duplicate'] == 1 or
@@ -621,8 +788,9 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     $options = array('is_duplicate' => TRUE, 'print_errors' => TRUE);
     $duplicate = chado_select_record($table, array_keys($table_desc['fields']), $values, $options);
 
-    // if this is a duplicate then substitute the values in the table_data array so
-    // that for future records that may depend on this one, they can get the values needed
+    // If this is a duplicate then substitute the values in the table_data array
+    // so that for future records that may depend on this one, they can get the 
+    // values needed.
     if ($duplicate and is_array($duplicate) and count($duplicate) == 1) {
       $dup_record = $duplicate[0];
       // save the duplicate record for later.  If this is an update_if_duplicate
@@ -663,26 +831,20 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
     # checking for a duplicate?
   }
 
+  // If this is not a select action then we are inserting or updating if
+  // a duplicate.
   if (!preg_match('/select/', $table_data['mode'])) {
-    // Use prepared statement?
-    if (variable_get('tripal_bulk_loader_prepare', TRUE)) {
-      $options = array('statement_name' =>  'record_' . $addt->nid . '_' . $priority);
-      if (($addt->line_num > 1 && $addt->group_index == 1) OR $addt->group_index > 1) {
-        //$options['is_prepared'] = TRUE;
-      }
-    }
-    else {
-      $options = array();
-    }
+    
+    // Initialize the $options array used for the chado_insert_record()
+    $options = array();
+    
     // Skip chado_insert_record() built-in validation?
     if (variable_get('tripal_bulk_loader_skip_validation', FALSE)) {
       $options['skip_validation'] = TRUE;
     }
 
+    // If this is an update if duplicate then we must first 
     if ($table_data['update_if_duplicate'] == 1) {
-      if (array_key_exists('statement_name', $options)) {
-        $options['statement_name'] = 'upd_' . $options['statement_name'];
-      }
       // This should have been set on the first round of inserts for this record
       $match = $data[$priority]['is_duplicate'];
       // However, sometimes there is a pre-existing record before the loader starts
@@ -712,9 +874,8 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
         $results = chado_select_record($table, array_keys($table_desc['fields']), $match, array('print_errors' => TRUE));
         // If not then insert
         if (empty($results)) {
-          $options['statement_name'] = 'ins_'.$options['statement_name'];
           $options['print_errors'] = TRUE;
-          $record = chado_insert_record($table, $values, $options);
+          $record = tripal_bulk_loader_insert_values($table, $values, $options, $table_data);
         }
         else {
           $options['return_record'] = TRUE;
@@ -732,12 +893,13 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
         $no_errors = FALSE;
       }
     }
+    // If not an update if duplicate then perform the insert
     else {
       $options['print_errors'] = TRUE;
-      $record = chado_insert_record($table, $values, $options);
+      $record = tripal_bulk_loader_insert_values($table, $values, $options, $table_data);
     }
 
-    // if the insert was not successful
+    // If the insert was not successful.
     if (!$record) {
       $msg = "\nLine " . $addt->line_num . ' ' . $table_data['record_id'] . ' (' .
         $table_data['mode'] . ') Unable to insert record into ' . $table .
@@ -747,7 +909,7 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
       $data[$priority]['error'] = TRUE;
       $no_errors = FALSE;
     }
-    // if the insert was succesful
+    // If the insert was successful.
     else {
 
       // if mode=insert_once then ensure we only insert it once
@@ -852,6 +1014,49 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
 }
 
 /**
+ * Performs the insert of a record.
+ * 
+ * @param $table
+ *   The table name
+ * @param $values
+ *   The values to insert
+ * @param $options
+ *   The options for the chado_insert_record() function
+ * @param $table_data
+ *   The table_data array that contains the list of delimiters.
+ *   
+ * @return
+ *   The result from chado_inset_record().
+ */
+function tripal_bulk_loader_insert_values($table, $values, $options, $table_data) {
+  
+  // Look to see if any of the fields have a delimiter. If so, repeatedly
+  // insert this record for every value. There should only be one one
+  // field with a delimiter. We don't check for it here but it the
+  // GUI should not have allowed more than one.
+  if(array_key_exists('delimiters', $table_data) and 
+     count(array_keys($table_data['delimiters'])) > 0) {
+    // Iterate through the values and look for the field with the
+    // delimiter. When found, run the insert repeatedly for each value.
+    foreach ($values as $field => $value) {
+      if (array_key_exists($field, $table_data['delimiters'])) {
+        $delimiter = $table_data['delimiters'][$field];
+        $subvals = explode($delimiter, $value);
+        foreach ($subvals as $subval) {
+          $new_vals = $values;
+          $new_vals[$field] = $subval;
+          $record = chado_insert_record($table, $new_vals, $options);
+        }
+      }
+    }
+  }
+  else {
+    $record = chado_insert_record($table, $values, $options);
+  }
+  
+  return $record;
+}
+/**
  * This function adds the file data to the values array
  *
  * @param $values
@@ -867,18 +1072,26 @@ function process_data_array_for_line($priority, &$data, &$default_data, $addt) {
  */
 function tripal_bulk_loader_add_spreadsheetdata_to_values($values, $line, $field2column) {
   foreach ($values as $field => $value) {
+    
+    // If the value for this field is an array then skip it. It's a FK field.
     if (is_array($value)) {
       continue;
     }
 
+    // Get the column number for this field from the $field2column array. If
+    // it's less than zero then skip it.  
     $column = $field2column[$field] - 1;
     if ($column < 0) {
       continue;
     }
 
+    // If there is any non white sapce in the field then retreive it's
+    // value and add it to the values array.
     if (preg_match('/\S+/', $line[$column])) {
       $values[$field] = $line[$column];
     }
+    // If the field contains no non-white space then unset the value: we
+    // don't have one.
     else {
       unset($values[$field]);
     }
@@ -896,7 +1109,8 @@ function tripal_bulk_loader_add_spreadsheetdata_to_values($values, $line, $field
  *
  * @ingroup tripal_bulk_loader
  */
-function tripal_bulk_loader_add_foreignkey_to_values($table_array, $values, $data, $record2priority, $nid, $priority, $default_data) {
+function tripal_bulk_loader_add_foreignkey_to_values($table_array, $values, $data, 
+    $record2priority, $nid, $priority, $default_data) {
 
   // iterate through each field in the $values arrray and
   // substitute any values for FK / referring fields
@@ -997,6 +1211,7 @@ function tripal_bulk_loader_add_foreignkey_to_values($table_array, $values, $dat
  */
 function tripal_bulk_loader_regex_tranform_values($values, $table_data, $line) {
 
+  // Make sure we have a proper regex_transform record in the table data array
   if (!array_key_exists('regex_transform', $table_data) or
       empty($table_data['regex_transform']) or
       !array_key_exists('regex_transform', $table_data) or
@@ -1004,21 +1219,29 @@ function tripal_bulk_loader_regex_tranform_values($values, $table_data, $line) {
     return $values;
   }
 
-  //tripal_core_report_error('T_bulk_loader', TRIPAL_NOTICE,'Regex Transformation:<pre>'.print_r($table_data['regex_transform'], TRUE).'</pre>', array());
-
+  // Iterate through the regular expressions and apply each one.
   foreach ($table_data['regex_transform'] as $field => $regex_array) {
+    
+    // Make sure we have an entry for the pattern and the replacement. If not
+    // then skip this regex entry.
     if (!array_key_exists('replace', $regex_array) or
         !array_key_exists('pattern', $regex_array) or
         !is_array($regex_array['replace'])) {
       continue;
     }
 
-    // Check for <#column:\d+#> notation
-    // if present replace with that column in the current line
+    // The bulk loader supports referring to values in other columns of the
+    // data file in a replacement string. This way you can concatenate values
+    // from other parts of the input file. To support this the format of the
+    // replacement pattern must be <#column:\d+#>. If it exists then the value
+    // of the column gets substituted in.
     foreach ($regex_array['replace'] as $key => $replace) {
+      // Find all occurances of <#column:\d+#> in the replacement string and
+      // pull out the column numbers.
       if (preg_match_all('/<#column:(\d+)#>/', $replace, $matches)) {
         foreach ($matches[1] as $k => $column_num) {
-          $replace = preg_replace('/' . $matches[0][$k] .'/', $line[$column_num-1], $replace);
+          // Add in the column values to the replacement string.
+          $replace = preg_replace('/' . $matches[0][$k] . '/', $line[$column_num - 1], $replace);
         }
         $regex_array['replace'][$key] = $replace;
       }

@@ -1519,6 +1519,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
         $form_state['values']['column_number']       = (isset($original_field['spreadsheet column'])) ? $original_field['spreadsheet column'] : '';
         $form_state['values']['column_exposed']      = (isset($original_field['exposed'])) ? $original_field['exposed'] : FALSE;
         $form_state['values']['column_exposed_desc'] = (isset($original_field['exposed_description'])) ? $original_field['exposed_description'] : FALSE;
+        $form_state['values']['column_delimiter']    = (isset($original_field['delimiter'])) ? $original_field['delimiter'] : FALSE;
       }
       break;
     case 'constant':
@@ -1544,6 +1545,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
       $v['column_number'] = (isset($form_state['values']['column_number'])) ? $form_state['values']['column_number'] : '';
       $v['column_exposed'] = (isset($form_state['values']['column_exposed'])) ? $form_state['values']['column_exposed'] : FALSE;
       $v['column_exposed_desc'] = (isset($form_state['values']['column_exposed_desc'])) ? $form_state['values']['column_exposed_desc'] : FALSE;
+      $v['column_delimiter'] = (isset($form_state['values']['column_delimiter'])) ? $form_state['values']['column_delimiter'] : '';
       $v['constant_value'] = '';
       $v['constant_exposed'] = FALSE;
       $v['constant_validate'] = FALSE;
@@ -1552,6 +1554,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
       $v['column_number'] = '';
       $v['column_exposed'] = FALSE;
       $v['column_exposed_desc'] = FALSE;
+      $v['column_delimiter'] = '';
       $v['constant_value'] = (isset($form_state['values']['constant_value'])) ? $form_state['values']['constant_value'] : '';
       $v['constant_exposed'] = (isset($form_state['values']['constant_exposed'])) ? $form_state['values']['constant_exposed'] : FALSE;
       $v['constant_validate'] = (isset($form_state['values']['constant_validate'])) ? $form_state['values']['constant_validate'] : FALSE;
@@ -1560,6 +1563,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
       $v['column_number'] = '';
       $v['column_exposed'] = FALSE;
       $v['column_exposed_desc'] = FALSE;
+      $v['column_delimiter'] = '';
       $v['constant_value'] = '';
       $v['constant_exposed'] = FALSE;
       $v['constant_validate'] = FALSE;
@@ -1945,6 +1949,22 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
     '#description' => t('This description should tell the user what column should be entered here.'),
     '#default_value' => $values['column_exposed_desc'],
   );
+  
+  $form['fields']['columns']['column_delimiter'] = array(
+    '#title' => 'Delimiter',
+    '#type' => 'textfield',
+    '#size' => 2,
+    '#default_value' => $values['column_delimiter'],
+    '#description' => t('Please provide the value delimiter (e.g. comma,
+        semicolon, etc). If this field should be interpreted as a list of
+        values rather than a singe value, then the bulk loader can separate
+        the items using the delimiter. Each item in the resulting list
+        will be inserted as individual records.  The delimiter is only
+        applicable when inserting a record. Also, only one field in a record
+        can have a delimiter. NOTE: records containing a field with a
+        delimiter cannot be used as a record referral in another record.
+        This is because there would not be single record to link to.')
+  );
 
   // Global Value
   $form['fields']['constant'] = array(
@@ -2033,6 +2053,8 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
     '#title' => 'Make this field required',
     '#default_value' => $values['required'],
   );
+  
+
 
   $form['fields']['additional']['regex_transform'] = array(
     '#type' => 'fieldset',
@@ -2194,8 +2216,32 @@ function tripal_bulk_loader_template_field_form_validate($form, &$form_state) {
     if ((!$is_unique) AND $new_record) {
       form_set_error('record_name', "New Record Name must be unique. '" . $form_state['values']['record_name'] . "' is not unique.");
     }
+    
+    // make sure there are no other delimited fields for this record.
+    if ($form_state['values']['column_delimiter']) {
+      $template = $form_state['storage']['template_array'];
+      $field_group = $form_state['values']['field_group'];
+      $num_dels = 0;
+      foreach ($template as $priority => $record) {
+         if ($priority == $field_group) {
+           // Iterate through all of the fields and count those with delimiters
+           // that are not for the field being submitted.
+           foreach ($record['fields'] as $i => $field) {
+             if ($field['delimiter'] != '' and $field['field'] != $form_state['values']['chado_field']) {
+               $num_dels++;
+             }
+           }
+         }
+      }
+      if ($num_dels > 0) {
+        form_set_error('column_delimiter', "This record already contains a field with a delimiter. Currently, the bulk loader can only support a record with a single delimited field.");
+      }
+    }
+    
+    // A record that has a column delimiter cannot be used as record referral
+    // this is because there is not a one to one mapping.
+    
   }
-
 }
 
 /**
@@ -2235,6 +2281,7 @@ function tripal_bulk_loader_template_field_form_submit($form, &$form_state) {
         'title' => $form_state['values']['field_title'],
         'field' => $form_state['values']['chado_field'],
         'required' => $form_state['values']['required'],
+        'delimiter' => $form_state['values']['column_delimiter'],
         //'allowed values' => empty by default,
         'spreadsheet column' => $form_state['values']['column_number'],
         'exposed' => $form_state['values']['column_exposed'],
