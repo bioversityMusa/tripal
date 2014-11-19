@@ -1823,10 +1823,19 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
 
   $form['template_name'] = array(
     '#type' => 'item',
-    '#title' => 'Template',
+    '#title' => t('Template Name'),
     '#markup' => $values['template_name'],
   );
+  
+  if ($values['field_group'] != 'NEW') {
+    $form['field_group_markup'] = array(
+      '#type' => 'item',
+      '#title' => t('Record Name'),
+      '#markup' =>  $values['field_group_options'][$values['field_group']],
+    );
+  }
 
+  
   $form['template_id'] = array(
     '#type' => 'hidden',
     '#value' => $values['template_id'],
@@ -1844,22 +1853,66 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
     '#suffix' => '</div>'
   );
 
-  $form['fields']['basic']['field_group']  = array(
-    '#type' => 'select',
-    '#title' => 'Record',
-    '#description' => t(
-       'This is used to group a set of fields together allowing ' .
-       'multiple records to be inserted into the same table per line of the file'),
-    '#options' => $values['field_group_options'],
-    '#default_value' => $values['field_group'],
-    '#ajax' => array(
-      'callback' => 'tripal_bulk_loader_template_fields_ahah',
-      'wrapper' => 'tripal_bulk_loader_template-template_fields',
-      'effect' => 'fade'
-    ),
-    '#required' => TRUE,
+  $form['fields']['basic']['field_group'] = array(
+    '#type' => 'hidden',
+    '#value' => $values['field_group'],
   );
 
+//   $form['fields']['basic']['field_group']  = array(
+//     '#type' => 'select',
+//     '#title' => 'Record',
+//     '#description' => t('The bulk loader organizes actions on database tables into "records". 
+//       Each action (i.e. insert, select or update) in a record will occur for only a single
+//       table within Chado. A new record should be added for each action that should
+//       occur on a table.'),
+//     '#options' => $values['field_group_options'],
+//     '#default_value' => $values['field_group'],
+//     '#ajax' => array(
+//       'callback' => 'tripal_bulk_loader_template_fields_ahah',
+//       'wrapper' => 'tripal_bulk_loader_template-template_fields',
+//       'effect' => 'fade'
+//     ),
+//     '#required' => TRUE,
+//   );
+  
+  // Chado Field
+  //   $form['fields']['chado'] = array(
+  //     '#type' => 'fieldset',
+  //     '#title' => t('Chado Field/Column Details'),
+  //     '#description' => t('Specify the Table/Field in chado that this field maps to.'),
+  //   );
+  
+  $form['fields']['basic']['chado_table'] = array(
+      '#type' => 'select',
+      '#title' => t('Chado Table'),
+      '#options' => $values['chado_table_options'],
+      '#default_value' => $values['chado_table'],
+      '#ajax' => array(
+          'callback' => 'tripal_bulk_loader_template_fields_ahah',
+          'wrapper' => 'tripal_bulk_loader_template-template_fields',
+          'effect' => 'fade'
+      ),
+      '#description' => t('Specify the table in Chado that this field maps to.
+       If this record is an insert, update or select then this is the table on which
+       the action will occur.'),
+  );
+  
+  $form['fields']['basic']['chado_field'] = array(
+      '#type' => 'select',
+      '#title' => t('Chado Field/Column'),
+      '#options' => $values['chado_field_options'],
+      '#default_value' => $values['chado_field'],
+      '#ajax' => array(
+          'callback' => 'tripal_bulk_loader_template_fields_ahah',
+          'wrapper' => 'tripal_bulk_loader_template-template_fields',
+          'effect' => 'fade'
+      ),
+      '#description' => t('Specify the field in the Chado table that this field maps to.
+       If this record is an insert, update or select then this is the field from
+       the table specified above on which the action will occur.'),
+  );
+  
+  
   $form['fields']['basic']['record_name'] = array(
     '#type' => ($values['no_record_id']) ? 'textfield' : 'hidden',
     '#title' => 'Unique Record Name',
@@ -1890,43 +1943,6 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
         either from the file being loaded, from a previous record in the
         template or a constant value provided by the user depending how this
         field is configured below.')
-  );
-  
-  // Chado Field
-//   $form['fields']['chado'] = array(
-//     '#type' => 'fieldset',
-//     '#title' => t('Chado Field/Column Details'),
-//     '#description' => t('Specify the Table/Field in chado that this field maps to.'),
-//   );
-
-  $form['fields']['basic']['chado_table'] = array(
-    '#type' => 'select',
-    '#title' => t('Chado Table'),
-    '#options' => $values['chado_table_options'],
-    '#default_value' => $values['chado_table'],
-    '#ajax' => array(
-      'callback' => 'tripal_bulk_loader_template_fields_ahah',
-      'wrapper' => 'tripal_bulk_loader_template-template_fields',
-      'effect' => 'fade'
-    ),
-    '#description' => t('Specify the table in Chado that this field maps to.  
-       If this record is an insert, update or select then this is the table on which 
-       the action will occur.'),
-  );
-
-  $form['fields']['basic']['chado_field'] = array(
-    '#type' => 'select',
-    '#title' => t('Chado Field/Column'),
-    '#options' => $values['chado_field_options'],
-    '#default_value' => $values['chado_field'],
-    '#ajax' => array(
-      'callback' => 'tripal_bulk_loader_template_fields_ahah',
-      'wrapper' => 'tripal_bulk_loader_template-template_fields',
-      'effect' => 'fade'
-    ),
-    '#description' => t('Specify the field in the Chado table that this field maps to. 
-       If this record is an insert, update or select then this is the field from
-       the table specified above on which the action will occur.'),
   );
 
   $form['fields']['basic']['field_type'] = array(
