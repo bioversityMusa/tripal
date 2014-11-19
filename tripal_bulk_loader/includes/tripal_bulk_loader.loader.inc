@@ -227,6 +227,21 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
    */
   $field2column = array();
   
+  /* The $field2column_header array contains the list of fields where the value
+   * should be taken from the header rather than from the line in the file. 
+   * The format is a three-dimensional array with the firstkey being the 
+   * record number, the second being the field name and the final value 
+   * being a 1 to indicate the header should be used.
+   *   array(
+   *     0 => array (
+   *       <field 1> => 1,
+   *       <field 2> => 1,
+   *     ),
+   *   ),
+   *   etc....
+   */
+   $field2column_header = array();
+  
   /* The $record2priority array allows for quick lookup of each record's order
    * in the bulk loader template. The "priority" is the ordering of the records. 
    * It is simply a key/value pair where the key is the record ID (or human
@@ -326,6 +341,9 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
         $default_data[$priority]['values_array'][$field_array['field']] = '';
         $default_data[$priority]['need_further_processing'] = TRUE;
         $field2column[$priority][$field_array['field']] = $field_array['spreadsheet column'];
+        if ($field_array['use_header']) {
+          $field2column_header[$priority][$field_array['field']] = 1;
+        }
         
         // Add in field delimiters. There should be no more than one field
         // per record with a delimiter.
@@ -447,18 +465,20 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
       return;
     }
 
-    // Set defaults in variables used for iterating through the file.
-    $header = '';
-    if (preg_match('/(t|true|1)/', $node->file_has_header)) {
-      $file->next();
-      $header = $file->current();
-    }
+    // Initailzie variables used for iterating through the file.
     $num_records = 0;
     $num_lines = 0;
     $num_errors = 0;
     $interval = intval($total_lines * 0.0001);
     if ($interval == 0) {
       $interval = 1;
+    }
+    
+    // Get the header values.
+    $header = array();
+    if (preg_match('/(t|true|1)/', $node->file_has_header)) {
+      $file->next();
+      $header = explode("\t", trim($file->current()));
     }
 
     // Start Transaction.
@@ -547,6 +567,8 @@ function tripal_bulk_loader_load_data($nid, $job_id) {
         // tripal_bulk_loader_process_data_array_for_line and contains all the needed information.
         $options = array(
           'field2column' => $field2column,
+          'field2column_header' => $field2column_header,
+          'header' => $header,
           'record2priority' => $record2priority,
           'line' => $line,
           'line_num' => $num_lines,
@@ -652,7 +674,7 @@ function tripal_bulk_loader_process_data_array_for_line($priority, &$data, &$def
   if (array_key_exists('need_further_processing', $table_data) and $table_data['need_further_processing']) {
     // If this field's value should come from a column in the input file then retreive it
     if (array_key_exists($priority, $addt->field2column)) {
-      $values = tripal_bulk_loader_add_spreadsheetdata_to_values($values, $addt->line, $addt->field2column[$priority]);
+      $values = tripal_bulk_loader_add_spreadsheetdata_to_values($values, $addt->line, $addt->field2column[$priority], $addt->field2column_header[$priority], $addt->header);
     }
     // After adding in any spreadsheet values we now need to add in any 
     // record referral data.
@@ -1070,7 +1092,8 @@ function tripal_bulk_loader_insert_values($table, $values, $options, $table_data
  *
  * @ingroup tripal_bulk_loader
  */
-function tripal_bulk_loader_add_spreadsheetdata_to_values($values, $line, $field2column) {
+function tripal_bulk_loader_add_spreadsheetdata_to_values($values, $line, $field2column, $field2column_header, $header) {
+
   foreach ($values as $field => $value) {
     
     // If the value for this field is an array then skip it. It's a FK field.
@@ -1084,10 +1107,14 @@ function tripal_bulk_loader_add_spreadsheetdata_to_values($values, $line, $field
     if ($column < 0) {
       continue;
     }
-
-    // If there is any non white sapce in the field then retreive it's
+    
+    // If the value should come from the header then add it to the values array
+    if ($field2column_header[$field] == 1) {
+      $values[$field] = $header[$column];
+    }
+    // If there is any non white space in the field then retreive it's
     // value and add it to the values array.
-    if (preg_match('/\S+/', $line[$column])) {
+    elseif (preg_match('/\S+/', $line[$column])) {
       $values[$field] = $line[$column];
     }
     // If the field contains no non-white space then unset the value: we

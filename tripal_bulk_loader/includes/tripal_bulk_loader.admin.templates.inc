@@ -1520,6 +1520,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
         $form_state['values']['column_exposed']      = (isset($original_field['exposed'])) ? $original_field['exposed'] : FALSE;
         $form_state['values']['column_exposed_desc'] = (isset($original_field['exposed_description'])) ? $original_field['exposed_description'] : FALSE;
         $form_state['values']['column_delimiter']    = (isset($original_field['delimiter'])) ? $original_field['delimiter'] : FALSE;
+        $form_state['values']['column_use_header']   = (isset($original_field['use_header'])) ? $original_field['use_header'] : FALSE;
       }
       break;
     case 'constant':
@@ -1546,6 +1547,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
       $v['column_exposed'] = (isset($form_state['values']['column_exposed'])) ? $form_state['values']['column_exposed'] : FALSE;
       $v['column_exposed_desc'] = (isset($form_state['values']['column_exposed_desc'])) ? $form_state['values']['column_exposed_desc'] : FALSE;
       $v['column_delimiter'] = (isset($form_state['values']['column_delimiter'])) ? $form_state['values']['column_delimiter'] : '';
+      $v['column_use_header'] = (isset($form_state['values']['column_use_header'])) ? $form_state['values']['column_use_header'] : '';
       $v['constant_value'] = '';
       $v['constant_exposed'] = FALSE;
       $v['constant_validate'] = FALSE;
@@ -1555,6 +1557,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
       $v['column_exposed'] = FALSE;
       $v['column_exposed_desc'] = FALSE;
       $v['column_delimiter'] = '';
+      $v['column_use_header'] = '';
       $v['constant_value'] = (isset($form_state['values']['constant_value'])) ? $form_state['values']['constant_value'] : '';
       $v['constant_exposed'] = (isset($form_state['values']['constant_exposed'])) ? $form_state['values']['constant_exposed'] : FALSE;
       $v['constant_validate'] = (isset($form_state['values']['constant_validate'])) ? $form_state['values']['constant_validate'] : FALSE;
@@ -1564,6 +1567,7 @@ function tripal_bulk_loader_template_field_form_default_values($mode, &$form_sta
       $v['column_exposed'] = FALSE;
       $v['column_exposed_desc'] = FALSE;
       $v['column_delimiter'] = '';
+      $v['column_use_header'] = '';
       $v['constant_value'] = '';
       $v['constant_exposed'] = FALSE;
       $v['constant_validate'] = FALSE;
@@ -1840,23 +1844,6 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
     '#suffix' => '</div>'
   );
 
-  $form['fields']['basic']['field_type'] = array(
-    '#type' => 'radios',
-    '#title' => t('Type of Field'),
-    '#options' => array(
-      'table field' => t('Data: A Field which maps to a column in the supplied file.'),
-      'constant' => t('Constant: Field which remains Constant throughout the file'),
-      'foreign key' => t('Record Referral: Fields which map to a record in another table'),
-    ),
-    '#required' => TRUE,
-    '#default_value' => $values['field_type'],
-    '#ajax' => array(
-      'callback' => 'tripal_bulk_loader_template_fields_ahah',
-      'wrapper' => 'tripal_bulk_loader_template-template_fields',
-      'effect' => 'fade'
-    ),
-  );
-
   $form['fields']['basic']['field_group']  = array(
     '#type' => 'select',
     '#title' => 'Record',
@@ -1886,17 +1873,33 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
     '#type' => 'textfield',
     '#title' => t('Human-readable Title for Field'),
     '#default_value' => $values['field_title'],
+    '#description' => t('If you expose this field for the end-user to provide a 
+        value, then this text will appear as the name for the field. Please 
+        provide a name that will be meaningful for the user loading the 
+        template file.')
   );
 
-
+  $form['fields']['basic']['required'] = array(
+    '#type' => 'checkbox',
+    '#title' => 'Make this field required',
+    '#default_value' => $values['required'],
+    '#description' => t('If this checkbox is selected then the bulk loader
+        will fail during import of a file if the value for this field is 
+        missing. This is important 
+        if a value is required when inserting. Values for fields can come
+        either from the file being loaded, from a previous record in the
+        template or a constant value provided by the user depending how this
+        field is configured below.')
+  );
+  
   // Chado Field
-  $form['fields']['chado'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Chado Field/Column Details'),
-    '#description' => t('Specify the Table/Field in chado that this field maps to.'),
-  );
+//   $form['fields']['chado'] = array(
+//     '#type' => 'fieldset',
+//     '#title' => t('Chado Field/Column Details'),
+//     '#description' => t('Specify the Table/Field in chado that this field maps to.'),
+//   );
 
-  $form['fields']['chado']['chado_table'] = array(
+  $form['fields']['basic']['chado_table'] = array(
     '#type' => 'select',
     '#title' => t('Chado Table'),
     '#options' => $values['chado_table_options'],
@@ -1905,10 +1908,13 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
       'callback' => 'tripal_bulk_loader_template_fields_ahah',
       'wrapper' => 'tripal_bulk_loader_template-template_fields',
       'effect' => 'fade'
-      ),
+    ),
+    '#description' => t('Specify the table in Chado that this field maps to.  
+       If this record is an insert, update or select then this is the table on which 
+       the action will occur.'),
   );
 
-  $form['fields']['chado']['chado_field'] = array(
+  $form['fields']['basic']['chado_field'] = array(
     '#type' => 'select',
     '#title' => t('Chado Field/Column'),
     '#options' => $values['chado_field_options'],
@@ -1918,272 +1924,311 @@ function tripal_bulk_loader_template_field_form($form, &$form_state = NULL) {
       'wrapper' => 'tripal_bulk_loader_template-template_fields',
       'effect' => 'fade'
     ),
+    '#description' => t('Specify the field in the Chado table that this field maps to. 
+       If this record is an insert, update or select then this is the field from
+       the table specified above on which the action will occur.'),
   );
 
-  // loading file data column
-  $form['fields']['columns'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Data File Column'),
-    '#collapsible' => TRUE,
-    '#collapsed' => ($values['field_type'] == 'table field')? FALSE : TRUE,
-  );
-
-  $form['fields']['columns']['column_number'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Column'),
-    '#description' => t('Specify the column in the data that this field maps to where the first column is 1.'),
-    '#size' => 5,
-    '#default_value' => $values['column_number'],
-  );
-
-  $form['fields']['columns']['column_exposed'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Allow Column to be set for each Bulk Loading Job'),
-    '#description' => t('Adds a textbox field to the Bulk Loader Page to allow users to set this value.'),
-    '#default_value' => $values['column_exposed'],
-  );
-
-  $form['fields']['columns']['column_exposed_desc'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Description for exposed field on bulk loading job'),
-    '#description' => t('This description should tell the user what column should be entered here.'),
-    '#default_value' => $values['column_exposed_desc'],
+  $form['fields']['basic']['field_type'] = array(
+    '#type' => 'radios',
+    '#title' => t('Type of Field'),
+    '#options' => array(
+       'table field' => t('Data: A Field which maps to a column in the supplied file.'),
+       'constant' => t('Constant: Field which remains Constant throughout the file'),
+       'foreign key' => t('Record Referral: Fields which map to a record in another table'),
+    ),
+    '#description' => t('Please specify where the data for this field will 
+        come from.  Please note, as you click a different type, new fields will 
+        appear below with additional configuration options.'),
+    '#required' => TRUE,
+    '#default_value' => $values['field_type'],
+    '#ajax' => array(
+      'callback' => 'tripal_bulk_loader_template_fields_type_ajax_callback',
+      'wrapper' => 'tripal-bulk-loader-template-fields-type-fieldset',
+      'effect' => 'fade'
+    ),
   );
   
-  $form['fields']['columns']['column_delimiter'] = array(
-    '#title' => 'Delimiter',
-    '#type' => 'textfield',
-    '#size' => 2,
-    '#default_value' => $values['column_delimiter'],
-    '#description' => t('Please provide the value delimiter (e.g. comma,
-        semicolon, etc). If this field should be interpreted as a list of
-        values rather than a singe value, then the bulk loader can separate
-        the items using the delimiter. Each item in the resulting list
-        will be inserted as individual records.  The delimiter is only
-        applicable when inserting a record. Also, only one field in a record
-        can have a delimiter. NOTE: records containing a field with a
-        delimiter cannot be used as a record referral in another record.
-        This is because there would not be single record to link to.')
-  );
+  // loading file data column
+  if ($values['field_type'] == 'table field') {
+     $form['fields']['settings'] = array(
+       '#type' => 'fieldset',
+       '#title' => t('Data File Column'),
+       '#collapsible' => FALSE,
+       '#collapsed' => FALSE,
+       '#prefix' => '<div id="tripal-bulk-loader-template-fields-type-fieldset">',
+       '#suffix' => '</div>',
+     );
+  
+    $form['fields']['settings']['columns']['column_number'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Column'),
+      '#description' => t('Specify the column in the data that this field maps to. The first column is 1, the second is 2, etc.'),
+      '#size' => 5,
+      '#default_value' => $values['column_number'],
+    );
+    $form['fields']['settings']['columns']['column_use_header'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Value in header'),
+      '#description' => t('Check this box if the value to be used is the header 
+          text rather than the text in the row. An example use case would be 
+          for inserting 
+          properties where where the cvterm name is the header text and the 
+          property value is the row text.'),
+      '#default_value' => $values['column_use_header'],
+    );
+  
+    $form['fields']['settings']['columns']['column_exposed'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Expose Field'),
+      '#description' => t('Allows the user to specify the column in the input file that should be 
+         used when loading a file.  A text box will be provided to the 
+         user when creating a bulk loading job to allow them to provide the value.'),
+      '#default_value' => $values['column_exposed'],
+    );
+  
+    $form['fields']['settings']['columns']['column_exposed_desc'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Description for exposed text box'),
+      '#description' => t('If this field is exposed to the user then the text
+        provided here will be used as a description for the text box. Please
+        provide a description that indicates which column in the input file
+        is appropriate for this field.'),
+      '#default_value' => $values['column_exposed_desc'],
+    );
+    
+    $form['fields']['settings']['columns']['column_delimiter'] = array(
+      '#title' => 'Delimiter',
+      '#type' => 'textfield',
+      '#size' => 2,
+      '#default_value' => $values['column_delimiter'],
+      '#description' => t('Please provide the value delimiter (e.g. comma,
+          semicolon, etc). If this field should be interpreted as a list of
+          values rather than a singe value, then the bulk loader can separate
+          the items using the delimiter. Each item in the resulting list
+          will be inserted as individual records.  The delimiter is only
+          applicable when inserting a record. Also, only one field in a record
+          can have a delimiter. NOTE: records containing a field with a
+          delimiter cannot be used as a record referral in another record.
+          This is because there would not be single record to link to.')
+    );
+    
+    $collapsed = TRUE;
+    if ($values['required'] OR $values['regex_are_set']) {
+      $collapsed = FALSE;
+    }
+    
+    
+    $form['fields']['settings']['columns']['regex_transform'] = array(
+        '#type' => 'fieldset',
+        '#title' => 'Transform Data File Value',
+        '#collapsible' => TRUE,
+        '#collapsed' => !$values['regex_are_set'],
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['regex_description'] = array(
+        '#type' => 'item',
+        '#markup' => 'A transformation rule allows you to transform the original value '
+        .'(usually from a user submitted data file) into the form you would like it stored '
+        .'in the chado database. Each rule consists of a match pattern (a php regular expression '
+        .'which determines which replacement patterns are applied and captures regions of the '
+        .'original value) and a replacement pattern (a string which may contain capture references '
+        .'that describes what the new value should be). Each rule is applied to the result of the '
+        .'previous rule.'
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['regex-data'] = array(
+        '#tree' => TRUE,
+        '#theme' => 'tripal_bulk_loader_field_regex_fieldset'
+    );
+    foreach ($values['regex-pattern'] as $index => $pattern) {
+      $data_element = array(
+          'pattern' => array(
+              '#type' => 'item',
+              '#markup' => check_plain($pattern),
+          ),
+          'replace' => array(
+              '#type' => 'item',
+              '#markup' => check_plain($values['regex-replace'][$index]),
+          ),
+          'old_index' => array(
+              '#type' => 'hidden',
+              '#value' => $index,
+          ),
+          'new_index' => array(
+              '#type' => 'select',
+              '#options' => range(0, sizeof($values['regex-pattern'])-1),
+              '#default_value' => $index,
+              '#attributes' => array('class' => array('rank-weight')), // needed for table dragging
+          ),
+          'id' => array(
+              '#type' => 'hidden',
+              '#value' => $index,
+          ),
+          'submit-delete' => array(
+              '#type' => 'submit',
+              '#value' => 'Delete Transformation',
+              '#name' => $index,
+          ),
+      );
+      $form['fields']['settings']['columns']['regex_transform']['regex-data'][$index] = $data_element;
+    }
+    
+    $form['fields']['settings']['columns']['regex_transform']['submit-reorder_regex'] = array(
+        '#type' => ($values['regex_are_set']) ? 'submit' : 'hidden',
+        '#value' => 'Save Transformation Rule Order'
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['new_regex'] = array(
+        '#type' => 'fieldset',
+        '#title' => 'Add a new Transformation Rule',
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['new_regex']['pattern'] = array(
+        '#type' => 'textfield',
+        '#title' => 'Match Pattern',
+        '#description' => 'You can use standard php regular expressions in this field to specify a '
+        .'pattern. Only if this pattern matches the value in the data file does the replacement '
+        .'pattern get applied to the value. To capture a section of your value for use in the '
+        .'replacement patten surround with round brackets. For example, <i>GI:(\d+)</i> will match '
+        .' NCBI gi numbers and will capture the numerical digits for use in the replacement pattern. '
+        .' To match and capture any value use <i>.*</i>',
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['new_regex']['replace'] = array(
+        '#type' => 'textfield',
+        '#title' => 'Replacement Pattern',
+        '#description' => 'This pattern should contain the text you want to replace the match pattern '
+        .'mentioned above. It can include references of the form \n where n is the number of the '
+        .'capture in the match pattern. For example, \1 will be replaced with the text matched in your '
+        .'first set of round brackets.',
+    );
+    
+    if ($values['field_type'] == 'table field') {
+      $tab = '&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp';
+      $form['fields']['settings']['columns']['regex_transform']['new_regex']['replace']['#description'] .= '<p>'  .
+          'The following references are also available for data file fields: <b><#column:<i>number</i>#></b>. ' .
+          'This allows you to substitute other data file values into the current field. For example, ' .
+          'if you had the following line:<br />' .
+           $tab . 'SNP' . $tab . '15-Jan-2011' . $tab . '1' . $tab . '54' . $tab . 'Contig34355' .
+          '<br /> and your current field is for column #1 and you\'re inserting into the chado field ' .
+          'feature.uniquename then you might want to add in the data to ensure your uniquename is ' .
+          'unique. The Match Pattern is (.*) to select all the first column and the Replacement ' .
+          'Pattern could be \1_<#column:2#> which would insert SNP_15-Jan-2011 into the database.</p>';
+    }
+    
+    $form['fields']['settings']['columns']['regex_transform']['new_regex']['submit-add_transform'] = array(
+        '#type' => 'submit',
+        '#value' => 'Add Transformation',
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['test_regex'] = array(
+        '#type' => 'fieldset',
+        '#title' => 'Test Transformation Rules',
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['test_regex']['test_string'] = array(
+        '#type' => 'textfield',
+        '#title' => 'Test Value',
+        '#description' => 'This should be a value that you expect the above transformation rules '
+        .'to be applied to.',
+        '#default_value' => $values['regex-test-string'],
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['test_regex']['test_result'] = array(
+        '#type' => 'textfield',
+        '#title' => 'Test Result',
+        '#description' => 'This is the value that would be saved to the database after the above transformation '
+        .'riles were applied to the Test Value.',
+        '#default_value' => $values['regex-test-result'],
+    );
+    
+    $form['fields']['settings']['columns']['regex_transform']['test_regex']['submit-test'] = array(
+        '#type' => 'submit',
+        '#value' => 'Test Transformation Rules'
+    );
+  }
 
   // Global Value
-  $form['fields']['constant'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Constant'),
-    '#collapsible' => TRUE,
-    '#collapsed' => ($values['field_type'] == 'constant')? FALSE : TRUE,
-  );
-
-  $form['fields']['constant']['constant_value'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Constant Value'),
-    '#description' => t('Specify the value you wish this field to have regardless of data file value.'),
-    '#default_value' => $values['constant_value']
-  );
-
-  $form['fields']['constant']['constant_exposed'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Allow Constant to be set for each Bulk Loading Job'),
-    '#description' => t('Adds a textbox field to the Create Bulk Loader Form to allow users to set this value.'),
-    '#default_value' => $values['constant_exposed'],
-  );
-
-  $form['fields']['constant']['constant_validate'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Ensure value is in table'),
-    '#description' => t('Checks the database when a bulk loading job is created to ensure the value entered already exists in the database.'),
-    '#default_value' => $values['constant_validate'],
-  );
+  if ($values['field_type'] == 'constant') {
+     $form['fields']['settings'] = array(
+       '#type' => 'fieldset',
+       '#title' => t('Constant'),
+       '#collapsible' => FALSE,
+       '#collapsed' => FALSE,
+       '#prefix' => '<div id="tripal-bulk-loader-template-fields-type-fieldset">',
+       '#suffix' => '</div>',
+     );
+  
+    $form['fields']['settings']['constant']['constant_value'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Constant Value'),
+      '#description' => t('Specify the value you wish this field to have regardless of data file value.'),
+      '#default_value' => $values['constant_value']
+    );
+  
+    $form['fields']['settings']['constant']['constant_exposed'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Expose Constant'),
+      '#description' => t('Adds a textbox field to the Create Bulk Loader Form to allow users to set this value.'),
+      '#default_value' => $values['constant_exposed'],
+    );
+    
+    // TODO: should there be a form element for providing the description for the the constant?
+  
+    $form['fields']['settings']['constant']['constant_validate'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Ensure value is in table'),
+      '#description' => t('Checks the database when a bulk loading job is created to ensure the value entered already exists in the database.'),
+      '#default_value' => $values['constant_validate'],
+    );
+  }
 
   // Foreign Key / Referrer
-  $form['fields']['foreign_key'] = array(
-    '#type' => 'fieldset',
-    '#title' => 'Record Referral',
-    '#collapsible' => TRUE,
-    '#collapsed' => ($values['field_type'] == 'foreign key')? FALSE : TRUE,
-  );
-
-  $form['fields']['foreign_key']['show_all_records'] = array(
-    '#type' => 'checkbox',
-    '#title' => 'Refer to any record',
-    '#description' => t('By default, the bulk loader will only allow referral to records in a foreign key relationship.  To allow referral to any previous record, check this box'),
-    '#default_value' => $values['show_all_records'],
-    '#ajax' => array(
-      'callback' => 'tripal_bulk_loader_template_fields_ahah',
-      'wrapper' => 'tripal_bulk_loader_template-template_fields',
-      'effect' => 'fade'
-    ),
-  );
-
-  $form['fields']['foreign_key']['foreign_record'] = array(
-    '#type' => 'select',
-    '#title' => 'Record to refer to',
-    '#descripion' => 'Select the record that this value should refer to. The record needs to already exist.',
-    '#options' => $values['foreign_record_options'],
-    '#ajax' => array(
-      'callback' => 'tripal_bulk_loader_template_fields_ahah',
-      'wrapper' => 'tripal_bulk_loader_template-template_fields',
-      'effect' => 'fade'
-    ),
-    '#default_value' => $values['foreign_record'],
-  );
-
-  $form['fields']['foreign_key']['foreign_field'] = array(
-    '#type' => 'select',
-    '#title' => 'Field to refer to',
-    '#descripion' => 'Select the record that this value should refer to. The record needs to already exist.',
-    '#options' => $values['foreign_field_options'],
-    '#default_value' => $values['foreign_field'],
-  );
-
-
-  $collapsed = TRUE;
-  if ($values['required'] OR $values['regex_are_set']) {
-    $collapsed = FALSE;
-  }
-  $form['fields']['additional'] = array(
-    '#type' => 'fieldset',
-    '#title' => 'Additional Options',
-    '#collapsible' => TRUE,
-    '#collapsed' => $collapsed
-  );
-
-  $form['fields']['additional']['required'] = array(
-    '#type' => 'checkbox',
-    '#title' => 'Make this field required',
-    '#default_value' => $values['required'],
-  );
+  if ($values['field_type'] == 'foreign key') {
+     $form['fields']['settings']['foreign_key'] = array(
+       '#type' => 'fieldset',
+       '#title' => 'Record Referral',
+       '#collapsible' => FALSE,
+       '#collapsed' => FALSE,
+       '#prefix' => '<div id="tripal-bulk-loader-template-fields-type-fieldset">',
+       '#suffix' => '</div>',
+     );
   
-
-
-  $form['fields']['additional']['regex_transform'] = array(
-    '#type' => 'fieldset',
-    '#title' => 'Transform Data File Value Rules',
-    '#collapsible' => TRUE,
-    '#collapsed' => !$values['regex_are_set'],
-  );
-
-  $form['fields']['additional']['regex_transform']['regex_description'] = array(
-    '#type' => 'item',
-    '#markup' => 'A transformation rule allows you to transform the original value '
-      .'(usually from a user submitted data file) into the form you would like it stored '
-      .'in the chado database. Each rule consists of a match pattern (a php regular expression '
-      .'which determines which replacement patterns are applied and captures regions of the '
-      .'original value) and a replacement pattern (a string which may contain capture references '
-      .'that describes what the new value should be). Each rule is applied to the result of the '
-      .'previous rule.'
-  );
-
-  $form['fields']['additional']['regex_transform']['regex-data'] = array(
-    '#tree' => TRUE,
-    '#theme' => 'tripal_bulk_loader_field_regex_fieldset'
-  );
-  foreach ($values['regex-pattern'] as $index => $pattern) {
-    $data_element = array(
-      'pattern' => array(
-        '#type' => 'item',
-        '#markup' => check_plain($pattern),
-      ),
-      'replace' => array(
-        '#type' => 'item',
-        '#markup' => check_plain($values['regex-replace'][$index]),
-      ),
-      'old_index' => array(
-        '#type' => 'hidden',
-        '#value' => $index,
-      ),
-      'new_index' => array(
-        '#type' => 'select',
-        '#options' => range(0, sizeof($values['regex-pattern'])-1),
-        '#default_value' => $index,
-        '#attributes' => array('class' => array('rank-weight')), // needed for table dragging
-      ),
-      'id' => array(
-        '#type' => 'hidden',
-        '#value' => $index,
-      ),
-      'submit-delete' => array(
-        '#type' => 'submit',
-        '#value' => 'Delete Transformation',
-        '#name' => $index,
+    $form['fields']['settings']['foreign_key']['show_all_records'] = array(
+      '#type' => 'checkbox',
+      '#title' => 'Refer to any record',
+      '#description' => t('By default, the bulk loader will only allow referral to records in a foreign key relationship.  To allow referral to any previous record, check this box'),
+      '#default_value' => $values['show_all_records'],
+      '#ajax' => array(
+        'callback' => 'tripal_bulk_loader_template_fields_ahah',
+        'wrapper' => 'tripal_bulk_loader_template-template_fields',
+        'effect' => 'fade'
       ),
     );
-    $form['fields']['additional']['regex_transform']['regex-data'][$index] = $data_element;
+  
+    $form['fields']['settings']['foreign_key']['foreign_record'] = array(
+      '#type' => 'select',
+      '#title' => 'Record to refer to',
+      '#descripion' => 'Select the record that this value should refer to. The record needs to already exist.',
+      '#options' => $values['foreign_record_options'],
+      '#ajax' => array(
+        'callback' => 'tripal_bulk_loader_template_fields_ahah',
+        'wrapper' => 'tripal_bulk_loader_template-template_fields',
+        'effect' => 'fade'
+      ),
+      '#default_value' => $values['foreign_record'],
+    );
+  
+    $form['fields']['settings']['foreign_key']['foreign_field'] = array(
+      '#type' => 'select',
+      '#title' => 'Field to refer to',
+      '#descripion' => 'Select the record that this value should refer to. The record needs to already exist.',
+      '#options' => $values['foreign_field_options'],
+      '#default_value' => $values['foreign_field'],
+    );
   }
 
-  $form['fields']['additional']['regex_transform']['submit-reorder_regex'] = array(
-    '#type' => ($values['regex_are_set']) ? 'submit' : 'hidden',
-    '#value' => 'Save Transformation Rule Order'
-  );
-
-  $form['fields']['additional']['regex_transform']['new_regex'] = array(
-    '#type' => 'fieldset',
-    '#title' => 'Add a new Transformation Rule',
-  );
-
-  $form['fields']['additional']['regex_transform']['new_regex']['pattern'] = array(
-    '#type' => 'textfield',
-    '#title' => 'Match Pattern',
-    '#description' => 'You can use standard php regular expressions in this field to specify a '
-      .'pattern. Only if this pattern matches the value in the data file does the replacement '
-      .'pattern get applied to the value. To capture a section of your value for use in the '
-      .'replacement patten surround with round brackets. For example, <i>GI:(\d+)</i> will match '
-      .' NCBI gi numbers and will capture the numerical digits for use in the replacement pattern. '
-      .' To match and capture any value use <i>.*</i>',
-  );
-
-  $form['fields']['additional']['regex_transform']['new_regex']['replace'] = array(
-    '#type' => 'textfield',
-    '#title' => 'Replacement Pattern',
-    '#description' => 'This pattern should contain the text you want to replace the match pattern '
-    .'mentioned above. It can include references of the form \n where n is the number of the '
-    .'capture in the match pattern. For example, \1 will be replaced with the text matched in your '
-    .'first set of round brackets.',
-  );
-
-  if ($values['field_type'] == 'table field') {
-    $tab = '&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp';
-    $form['fields']['additional']['regex_transform']['new_regex']['replace']['#description'] .= '<p>'
-      .'The following references are also available for data file fields: <b><#column:<i>number</i>#></b>. '
-      .'This allows you to substitute other data file values into the current field. For example, '
-      .'if you had the following line:<br />'
-      . $tab . 'SNP' . $tab . '15-Jan-2011' . $tab . '1' . $tab . '54' . $tab . 'Contig34355'
-      .'<br /> and your current field is for column #1 and you\'re inserting into the chado field '
-      .'feature.uniquename then you might want to add in the data to ensure your uniquename is '
-      .'unique. The Match Pattern is (.*) to select all the first column and the Replacement '
-      .'Pattern could be \1_<#column:2#> which would insert SNP_15-Jan-2011 into the database.</p>';
-  }
-
-  $form['fields']['additional']['regex_transform']['new_regex']['submit-add_transform'] = array(
-    '#type' => 'submit',
-    '#value' => 'Add Transformation',
-  );
-
-  $form['fields']['additional']['regex_transform']['test_regex'] = array(
-    '#type' => 'fieldset',
-    '#title' => 'Test Transformation Rules',
-  );
-
-  $form['fields']['additional']['regex_transform']['test_regex']['test_string'] = array(
-    '#type' => 'textfield',
-    '#title' => 'Test Value',
-    '#description' => 'This should be a value that you expect the above transformation rules '
-      .'to be applied to.',
-    '#default_value' => $values['regex-test-string'],
-  );
-
-  $form['fields']['additional']['regex_transform']['test_regex']['test_result'] = array(
-    '#type' => 'textfield',
-    '#title' => 'Test Result',
-    '#description' => 'This is the value that would be saved to the database after the above transformation '
-      .'riles were applied to the Test Value.',
-    '#default_value' => $values['regex-test-result'],
-  );
-
-  $form['fields']['additional']['regex_transform']['test_regex']['submit-test'] = array(
-    '#type' => 'submit',
-    '#value' => 'Test Transformation Rules'
-  );
 
   $form['submit-save'] = array(
       '#type' => 'submit',
@@ -2284,6 +2329,7 @@ function tripal_bulk_loader_template_field_form_submit($form, &$form_state) {
         'delimiter' => $form_state['values']['column_delimiter'],
         //'allowed values' => empty by default,
         'spreadsheet column' => $form_state['values']['column_number'],
+        'use_header' => $form_state['values']['column_use_header'],
         'exposed' => $form_state['values']['column_exposed'],
         'exposed_description' => $form_state['values']['column_exposed_desc'],
       );
@@ -2542,3 +2588,6 @@ function tripal_bulk_loader_template_fields_ahah($form, $form_state) {
   return $form['fields'];
 }
 
+function tripal_bulk_loader_template_fields_type_ajax_callback($form, $form_state) {
+  return $form['fields']['settings'];
+}
