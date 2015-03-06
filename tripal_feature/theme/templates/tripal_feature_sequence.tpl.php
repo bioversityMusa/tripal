@@ -186,7 +186,9 @@ if ($residues or count($featureloc_sequences) > 0) {
   } 
   ?>
 
-  <div class="tripal_feature-data-block-desc tripal-data-block-desc">The following sequences are available for this feature:</div> 
+  <div class="tripal_feature-data-block-desc tripal-data-block-desc">
+    The following sequences are available for this feature:
+  </div> 
   <?php
   
   // first add a list at the top of the page that can be formatted as the
@@ -221,8 +223,7 @@ if ($residues or count($featureloc_sequences) > 0) {
       <li>This feature is aligned to another feature (e.g. scaffold, or chromosome) and this feature has
           one or more CDS features associated.  The CDS sequenes underlying the alignment will be
           shown.</li>
-    </ul>
-    </p>';
+    </ul>';
   print tripal_set_message($message, TRIPAL_INFO, array('return_html' => 1));
   
   // now print the sequences

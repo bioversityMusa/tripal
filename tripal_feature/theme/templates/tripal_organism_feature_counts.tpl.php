@@ -8,7 +8,9 @@ if(property_exists($organism, 'feature_counts')) {
   $names    = $organism->feature_counts['names'];
 } ?>
 
-<div class="tripal_organism-data-block-desc tripal-data-block-desc">The following features are currently present for this organism</div> <?php
+<div class="tripal_organism-data-block-desc tripal-data-block-desc">The 
+  following features are currently present for this organism
+</div> <?php
 
 // let admins know they can customize the terms that appear in the list
 print tripal_set_message("

@@ -19,6 +19,7 @@ require_once 'api/tripal_feature.DEPRECATED.inc';
 require_once 'theme/tripal_feature.theme.inc';
 
 require_once 'includes/tripal_feature.admin.inc';
+require_once 'includes/tripal_feature.blocks.inc';
 require_once 'includes/tripal_feature.fasta_loader.inc';
 require_once 'includes/tripal_feature.gff_loader.inc';
 require_once 'includes/tripal_feature.seq_extract.inc';

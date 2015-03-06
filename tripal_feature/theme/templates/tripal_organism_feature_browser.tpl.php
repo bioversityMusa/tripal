@@ -47,7 +47,10 @@ foreach ($results as $result) {
 }
 
 if (count($features) > 0) { ?>
-  <div class="tripal_organism-data-block-desc tripal-data-block-desc">The following browser provides a quick view for new visitors.  Use the searching mechanism to find specific features.</div> <?php
+  <div class="tripal_organism-data-block-desc tripal-data-block-desc">The 
+    following browser provides a quick view for new visitors.  Use the 
+    searching mechanism to find specific features.
+  </div> <?php
 
   // the $headers array is an array of fields to use as the colum headers.
   // additional documentation can be found here

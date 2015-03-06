@@ -832,7 +832,7 @@ function tripal_feature_node_view($node, $view_mode, $langcode) {
     case 'chado_feature':
       // Show feature browser and counts
       if ($view_mode == 'full') {
-        $node->content['tripal_feature_alignments'] = array(
+       /*  $node->content['tripal_feature_alignments'] = array(
           '#theme' => 'tripal_feature_alignments',
           '#node' => $node,
           '#tripal_toc_id'    => 'alignments',
@@ -892,7 +892,7 @@ function tripal_feature_node_view($node, $view_mode, $langcode) {
           '#node' => $node,
           '#tripal_toc_id'    => 'terms',
           '#tripal_toc_title' => 'Annotated Terms',
-        );
+        ); */
       }
       if ($view_mode == 'teaser') {
         $node->content['tripal_feature_teaser'] = array(

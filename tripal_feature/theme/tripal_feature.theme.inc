@@ -506,6 +506,7 @@ function tripal_feature_preprocess_tripal_feature_alignments(&$variables) {
     )
   );
   $feature = chado_expand_var($feature, 'table', 'featureloc', $options);
+  
 
   // get alignments as child
   $cfeaturelocs = $feature->featureloc->feature_id;
@@ -804,6 +805,7 @@ function tripal_feature_get_feature_relationships($feature) {
   // get alignment as child. The $feature->featureloc element
   // is already populated from the alignment preprocess function
   $options = array(
+    'return_array' => 1,
     'include_fk' => array(
       'srcfeature_id' => 1,
       'feature_id' => 1,

@@ -391,8 +391,7 @@ function tripal_core_node_view_build_toc(&$build) {
           $updated_markup = "
             <div id=\"$toc_item_id-tripal-data-pane\" class=\"tripal-data-pane\">
               <div class=\"$toc_item_id-tripal-data-pane-title tripal-data-pane-title\">$toc_item_title</div>
-                $markup
-              </div>
+              $markup
             </div>
           ";
           $build[$toc_item_id]['#markup'] = $updated_markup;
@@ -542,15 +541,15 @@ function tripal_core_node_view_build_toc(&$build) {
       // CREATE THE CONTENT PANE MARKUP
       //-----------------------
       // add a surrounding <div> box around the content
-      $updated_markup = "
-        <div id=\"$toc_item_id-tripal-data-pane\" class=\"tripal-data-pane\">
-          <div class=\"$toc_item_id-tripal-data-pane-title tripal-data-pane-title\">$toc_item_title</div>
-            $markup
-            $path
-          </div>
-        </div>
-      ";
+       $updated_markup = "
+         <div id=\"$toc_item_id-tripal-data-pane\" class=\"tripal-data-pane\">
+           <div class=\"$toc_item_id-tripal-data-pane-title tripal-data-pane-title\">$toc_item_title</div>
+           $markup
+           $path
+         </div>
+       ";
   
+      
       $build[$key]['#markup'] = $updated_markup;
     } // end foreach ($build as $key => $value) {
   } // end if ($build['#tripal_generic_node_template'] == TRUE) {

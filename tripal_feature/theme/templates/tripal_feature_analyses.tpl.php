@@ -6,7 +6,10 @@ $analyses = $feature->analysisfeature;
 
 // don't show this page if there are no analyses
 if (count($analyses) > 0) { ?>
-  <div class="tripal_feature-data-block-desc tripal-data-block-desc">This <?php print $feature->type_id->name ?> is derived from or has results from the following analyses</div> <?php
+  <div class="tripal_feature-data-block-desc tripal-data-block-desc">
+    This <?php print $feature->type_id->name ?> is derived from or has 
+    results from the following analyses
+  </div> <?php
   
   // the $headers array is an array of fields to use as the colum headers.
   // additional documentation can be found here

@@ -28,7 +28,9 @@ if (count($object_rels) > 0 or count($subject_rels) > 0) { ?>
   // first add in the subject relationships.  
   foreach ($subject_rels as $rel_type => $rels){
     foreach ($rels as $obj_type => $objects){ ?>
-      <p>This <?php print $feature->type_id->name;?> is <?php print $rel_type ?> the following <b><?php print $obj_type ?></b> feature(s): <?php
+    
+      <p>This <?php print $feature->type_id->name;?> is <?php print $rel_type ?> 
+      the following <b><?php print $obj_type ?></b> feature(s): <?php
        
       // the $headers array is an array of fields to use as the colum headers.
       // additional documentation can be found here
@@ -81,14 +83,16 @@ if (count($object_rels) > 0 or count($subject_rels) > 0) { ?>
        // function to generate the table.
        print theme_table($table); ?>
        </p>
-       <br><?php
+       <br> <?php
      }
   }
   
   // second add in the object relationships.  
   foreach ($object_rels as $rel_type => $rels){
-    foreach ($rels as $subject_type => $subjects){?>
-      <p>The following <b><?php print $subjects[0]->record->subject_id->type_id->name ?></b> feature(s) are <?php print $rel_type ?> this <?php print $feature->type_id->name;?>: <?php 
+    foreach ($rels as $subject_type => $subjects){ ?>
+      <p>The following <b> <?php print $subjects[0]->record->subject_id->type_id->name ?> </b> 
+        feature(s) are <?php print $rel_type ?> this <?php print $feature->type_id->name;?>: <?php
+         
       // the $headers array is an array of fields to use as the colum headers.
       // additional documentation can be found here
       // https://api.drupal.org/api/drupal/includes%21theme.inc/function/theme_table/7
