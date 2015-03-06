@@ -1,0 +1,60 @@
+/******************************************************************************
+ * The links that appear in the TOC section are added dynamically by
+ * JavaScript code found at the top of the node--chado-generc.tpl.php template.
+ * Each link in the TOC cooresponds to a "pane" of data added to the Data
+ * Column. Initially, the JavaScript hids all "panes" except for the "Details"
+ * pane.  There will be as many panes as there are TOC links.
+ *
+ * By default, all panes have the following layout that consists of a
+ * container div box with the class 'tripal-info-box', a div box to house the
+ * pane title with the class 'tripal-info-box-title', and a div box to
+ * house a brief description about the pane with the class
+ * 'tripal-info-box-desc'
+ *
+ * |-----------------------------------------------|
+ * |  .tripal-data-pane                            |
+ * | |-------------------------------------------| |
+ * | | .tripal-data-pane-title                   | |
+ * | |-------------------------------------------| |
+ * | | .tripal-data-pane-desc                    | |
+ * | |-------------------------------------------| |
+ * |                                               |
+ * | (Block data goes here)                        |
+ * |                                               |
+ * |                                               |
+ * |                                               |
+ * |                                               |
+ * |-----------------------------------------------|
+ */
+.tripal-data-pane {
+   padding: 0;
+   margin-left:  10px;
+   margin-bottom: 10px;
+   float: left;
+   padding: 5px;
+   /* border: 1px solid #AAAAAA; */   
+}
+.tripal-data-pane-title {
+  font-size: 1.5em;
+  padding-bottom: 5px;
+  padding: 3px;
+  margin-bottom: 5px;
+  border-bottom: 2px solid #AAAAAA; 
+}
+
+.tripal-info-box-desc {
+  margin-bottom: 10px;
+}
+
+/**
+ * Within the pane data
+ */
+ .tripal-data-table {
+   margin-top: 0px;
+   margin-bottom: 10px;
+   width: 100%;
+ }
+ 
+ .tripal-data-table tr {
+   /* white-space: nowrap; */
+ }

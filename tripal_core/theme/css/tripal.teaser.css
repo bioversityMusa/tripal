@@ -1,0 +1,40 @@
+/******************************************************************************
+ * The teaser appears anywhere that a small snippet of the content is required.
+ * When any node in Drupal is published to the home page a teaser is used.
+ * Teasers can also be used in views to provide lists of content. The
+ * teaser template is similar to the pane but with the following sections and
+ * classes
+ *
+ * |-----------------------------------------------|
+ * |  .tripal-teaser                               |
+ * | |-------------------------------------------| |
+ * | | .tripal-teaser-title                      | |
+ * | |-------------------------------------------| |
+ * | | .tripal-teaser-text                       | |
+ * | |                                           | |
+ * | |-------------------------------------------| |
+ * |-----------------------------------------------|
+ */
+.tripal-teaser {
+  clear: both;
+  margin-bottom: 10px;
+}
+.tripal-teaser-title {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+.tripal-teaser-text {
+  text-align: justify;
+  text-justify:inter-word;
+}
+
+/**
+ * some nodes such as the organism node may have images. This class
+ * is used to format any image that appears in the teaser
+ */
+.tripal-teaser-img {
+  width: 100px;
+  float: left;
+  padding-right: 10px;
+  padding-bottom: 5px;
+}
