@@ -46,8 +46,8 @@ class TripalEntityUIController extends EntityDefaultUIController {
 
       // Set a custom page for adding new tripal data entities.
       $items['bio-data/add/' . $cvterm_id] = array(
-        'title' => ucfirst($cvterm->name),
-        'description' => 'A ' . $cvterm->name . ' record.',
+        'title' => ucfirst($bundle->label),
+        'description' => tripal_bundle_get_variable('description', $bundle->id),
         'page callback'  => 'drupal_get_form',
         'page arguments' => array('tripal_entities_entity_form', 2),
         'access callback'  => 'tripal_entities_entity_access',
