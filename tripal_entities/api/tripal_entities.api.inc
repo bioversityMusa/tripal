@@ -64,6 +64,95 @@ function tripal_create_bundle($namespace, $term_id, $term_name, &$error = '') {
 }
 
 /**
+ * @section
+ * Bundle Variables.
+ */
+
+/**
+ * Fetch the value for a given tripal variable.
+ *
+ * @param string $variable_name
+ *   The name of the variable as in tripal_variables.name.
+ * @param int $bundle_id
+ *   The unique identfier for the bundle you want the value for.
+ * @return text
+ *   The value of the specified variable for the specified bundle.
+ */
+function tripal_bundle_get_variable($variable_name, $bundle_id) {
+
+  $variable = tripal_get_variable($variable_name);
+  
+  // Wran if we can't find the tripal_variable.
+  if (!$variable) {
+    tripal_report_error(
+      'trpbundle_var',
+      TRIPAL_WARNING,
+      'Unable to fetch tripal bundle variable value due to missing tripal variable (%var).',
+      array('%var' => $variable_name)
+    );
+    return FALSE;
+  }
+  
+  // Select the value for this variable.
+  $value = db_select('tripal_bundle_variables', 'var')
+    ->fields('var', array('value'))
+    ->condition('var.bundle_id', $bundle_id)
+    ->condition('var.variable_id', $variable->variable_id)
+    ->execute()
+    ->fetchField();
+  
+  // Warn if the value appears to be empty.
+  if (!$value) {
+    tripal_report_error(
+      'trpbundle_var',
+      TRIPAL_WARNING,
+      'Unable to fetch tripal bundle variable (%var) value.',
+      array('%var' => $variable_name)
+    );
+  }
+
+  return $value;
+}
+
+/** 
+ * Save the value of a tripal variable for a given bundle.
+ *
+ * @param string $variable_name
+ *   The name of the variable as in tripal_variables.name.
+ * @param int $bundle_id
+ *   The unique identfier for the bundle you want the value for.
+ * @param $text $value
+ *   The value of the variable for the given bundle.
+ */
+function tripal_bundle_save_variable($variable_name, $bundle_id, $value) {
+
+  $variable = tripal_get_variable($variable_name);
+
+  // And then we need to write the new format to the tripal_bundle_variables table.
+  $record = array(
+    'bundle_id' => $bundle_id,
+    'variable_id' => $variable->variable_id,
+    'value' => $value,
+  );
+  
+  // Check whether there is already a format saved.
+  $bundle_variable_id = db_select('tripal_bundle_variables', 'var')
+    ->fields('var', array('bundle_variable_id'))
+    ->condition('var.bundle_id', $record['bundle_id'])
+    ->condition('var.variable_id', $record['variable_id'])
+    ->execute()
+    ->fetchField();
+  if ($bundle_variable_id) {
+    $record['bundle_variable_id'] = $bundle_variable_id;
+    return drupal_write_record('tripal_bundle_variables', $record, 'bundle_variable_id');
+  }
+  else {
+    return drupal_write_record('tripal_bundle_variables', $record);
+  }
+
+}
+
+/**
  * @section 
  * Title & URL Formats.
  */
@@ -75,23 +164,10 @@ function tripal_create_bundle($namespace, $term_id, $term_name, &$error = '') {
  *   The Entity object for the Tripal Bundle the title format is for.
  */
 function tripal_get_title_format($entity) {
-
-  // Title formats are saved as Tripal Bundle Variables.
-  // Therefore, first we need the variable_id for title_formats.
-  $variable_id = db_select('tripal_variables', 'v')
-    ->fields('v', array('variable_id'))
-    ->condition('name', 'title_format')
-    ->execute()
-    ->fetchField();
   
-  // Then we can check if there is already a title format for this bundle/type.
-  $title_format = db_select('tripal_bundle_variables', 'var')
-    ->fields('var', array('value'))
-    ->condition('var.bundle_id', $entity->id)
-    ->condition('var.variable_id', $variable_id)
-    ->execute()
-    ->fetchField();
-    
+  // Get the existing title format if it exists.
+  $title_format = tripal_bundle_get_variable('title_format', $entity->id);
+  
   // If there isn't yet a title format for this bundle/type then we should
   // determine the default.
   if (!$title_format) {
@@ -112,32 +188,7 @@ function tripal_get_title_format($entity) {
  */
 function tripal_save_title_format($entity, $format) {
 
-  // Title formats are saved as Tripal Bundle Variables.
-  // Thus first we need to grab the variable_id for title_format.
-  $variable_id = db_select('tripal_variables', 'v')->fields('v', array('variable_id'))->condition('name', 'title_format')->execute()->fetchField();
-
-  // And then we need to write the new format to the tripal_bundle_variables table.
-  $record = array(
-    'bundle_id' => $entity->id,
-    'variable_id' => $variable_id,
-    'value' => $format,
-  );
-  
-  // Check whether there is already a format saved.
-  $bundle_variable_id = db_select('tripal_bundle_variables', 'var')
-    ->fields('var', array('bundle_variable_id'))
-    ->condition('var.bundle_id', $record['bundle_id'])
-    ->condition('var.variable_id', $record['variable_id'])
-    ->execute()
-    ->fetchField();
-  if ($bundle_variable_id) {
-    $record['bundle_variable_id'] = $bundle_variable_id;
-    drupal_write_record('tripal_bundle_variables', $record, 'bundle_variable_id');
-  }
-  else {
-    drupal_write_record('tripal_bundle_variables', $record);
-  }
-
+  return tripal_bundle_save_variable('title_format', $entity->id, $format);
 }
 
 /**
