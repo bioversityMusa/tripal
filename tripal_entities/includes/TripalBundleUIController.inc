@@ -74,8 +74,11 @@ class TripalBundleUIController extends EntityDefaultUIController {
 function tripal_entities_tripal_bundle_form($form, &$form_state, $entityDataType) {
 
   $entity_type = $form_state['build_info']['args'][0];
-  $chado_basetable = $entity_type->label;
-  $cvterm = chado_generate_var('cvterm', array('name' => $entity_type->label));
+
+  // @TODO: Change this to use the term entity when it's working.
+  if (preg_match('/bio-data_(\d+)/', $entity_type->bundle, $matches)) {
+    $cvterm = chado_generate_var('cvterm', array('cvterm_id' => $matches[1]));
+  }
   
   // Add a validate and submit handler to save the data in this form.
   $form['#validate'] = array('tripal_entities_tripal_bundle_form_validate');
@@ -91,16 +94,18 @@ function tripal_entities_tripal_bundle_form($form, &$form_state, $entityDataType
     ),
   );
   
-  $form['term'] = array(
-    '#type' => 'markup',
-    '#markup' => theme('table', array(
-      'header' => array(),
-      'rows' => array(
-        array(array('header' => TRUE, 'data' => 'Vocabulary', 'class' => array('side-header')), $cvterm->cv_id->name),
-        array(array('header' => TRUE, 'data' => 'Term', 'class' => array('side-header')), $cvterm->name),
-      )
-    )) 
-  );
+    if ($cvterm) {
+    $form['term'] = array(
+      '#type' => 'markup',
+      '#markup' => theme('table', array(
+        'header' => array(),
+        'rows' => array(
+          array(array('header' => TRUE, 'data' => 'Vocabulary', 'class' => array('side-header')), $cvterm->cv_id->name),
+          array(array('header' => TRUE, 'data' => 'Term', 'class' => array('side-header')), $cvterm->name),
+        )
+      )) 
+    );
+  }
   
   $form['label'] = array(
     '#type' => 'textfield',
@@ -237,10 +242,11 @@ function tripal_entities_tripal_bundle_form_submit($form, &$form_state) {
     $bundle_entity = $form_state['build_info']['args'][0];
   
     // Save the label.
-    // @TODO: How should I save this?
+    $bundle_entity->label = $form_state['values']['label'];
+    $bundle_entity->save();
     
     // Save the description.
-    tripal_bundle_save_variable('description', $form_state['values']['description']);
+    tripal_bundle_save_variable('description', $bundle_entity->id, $form_state['values']['description']);
     
     // Save the page title format.
     tripal_save_title_format(
