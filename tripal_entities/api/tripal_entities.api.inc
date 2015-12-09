@@ -64,6 +64,11 @@ function tripal_create_bundle($namespace, $term_id, $term_name, &$error = '') {
 }
 
 /**
+ * @section 
+ * Title & URL Formats.
+ */
+ 
+/**
  * Get Page Title Format for a given Tripal Entity Type.
  *
  * @param TripalBundle $entity
@@ -88,11 +93,9 @@ function tripal_get_title_format($entity) {
     ->fetchField();
     
   // If there isn't yet a title format for this bundle/type then we should
-  // determine the default based on the table unique constraint and save it.
-  // @TODO: Replace the label with the base table name.
-  // @TODO: make this chado independant.
+  // determine the default.
   if (!$title_format) {
-    $title_format = chado_node_get_unique_constraint_format($entity->label);
+    $title_format = tripal_get_default_title_format($entity);
     tripal_save_title_format($entity, $title_format);
   }
   
@@ -137,6 +140,85 @@ function tripal_save_title_format($entity, $format) {
 
 }
 
+/**
+ * Determine the default pattern/format to use for an entity type.
+ *
+ * @param TripalBundle $entity
+ *   The Entity object for the Tripal Bundle the title format is for.
+ * @return string
+ *   A default title format.
+ */
+function tripal_get_default_title_format($entity) {
+  $format = array();
+
+  // Retrieve all available tokens.
+  $tokens = tripal_get_tokens($entity);
+
+  foreach($tokens as $token) {
+    if ($token['required']) {
+      $format[] = $token['token'];
+    }
+  }
+
+  return implode(', ', $format);
+}
+
+/**
+ * Returns an array of tokens based on Tripal Entity Fields.
+ *
+ * @param TripalBundle $entity
+ *    The bundle entity for which you want tokens.
+ * @return
+ *    An array of tokens where the key is the machine_name of the token.
+ */
+function tripal_get_tokens($entity) {
+  $tokens = array();
+
+  $fields = field_info_instances('TripalEntity', $entity->bundle);
+  foreach ($fields as $f) {
+
+    // Build the token from the field information.
+    $token = '[' . $f['field_name'] . ']';
+    $tokens[$token] = array(
+      'label' => $f['label'],
+      'description' => $f['description'],
+      'token' => $token,
+      'field_name' => $f['field_name'],
+      'required' => $f['required']
+    );
+  }
+
+  return $tokens;
+}
+
+/**
+ * Formats the tokens for display.
+ *
+ * @param array $tokens
+ *   A list of tokens generated via tripal_get_tokens().
+ * @return
+ *   Rendered output describing the available tokens.
+ */
+function theme_token_list($tokens) {
+
+  $header = array('Token', 'Name', 'Description');
+  $rows = array();
+  foreach ($tokens as $details) {
+    $rows[] = array(
+      '[' . $details['field_name'] . ']',
+      $details['label'],
+      $details['description'],
+    );
+  }
+
+  return theme('table', array('header' => $header, 'rows' => $rows));
+}
+
+/** 
+ * @section
+ * Vocabulary Hooks.
+ */
+ 
 /**
  * A hook for specifying information about the data store for vocabularies.
  *

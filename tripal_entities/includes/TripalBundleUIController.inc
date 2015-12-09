@@ -153,19 +153,15 @@ function tripal_entities_tripal_bundle_form($form, &$form_state, $entityDataType
     '#collapsed' => TRUE
   );
 
-  $tokens = array();
-  if (empty($tokens)) {
-    $tokens = chado_node_generate_tokens($chado_basetable);
-  }
+  $tokens = tripal_get_tokens($entity_type);
   $form['set_titles']['tokens'] = array(
     '#type' => 'hidden',
     '#value' => serialize($tokens)
   );
   
-  $token_list = chado_node_format_tokens($tokens);
   $form['set_titles']['token_display']['content'] = array(
     '#type' => 'item',
-    '#markup' => $token_list
+    '#markup' => theme_token_list($tokens)
   );
 
   // Submit Buttons
@@ -192,7 +188,7 @@ function tripal_entities_tripal_bundle_form($form, &$form_state, $entityDataType
 function tripal_entities_tripal_bundle_form_validate($form, $form_state) {
 
   $tokens_available = unserialize($form_state['values']['set_titles']['tokens']);
-  if (preg_match_all('/(\[\w+\.\w+\])/', $form_state['values']['set_titles']['title_format'], $matches)) {
+  if (preg_match_all('/(\[\w+\])/', $form_state['values']['set_titles']['title_format'], $matches)) {
     
     // The matches of the first and only pattern will be our tokens.
     $tokens_used = $matches[1];

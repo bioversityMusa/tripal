@@ -102,6 +102,7 @@ class TripalEntityController extends EntityAPIController {
           if (isset($entity->{$field})) {
             
             // Render the value from the field.
+            // @TODO: Handle the case where thefield is empty... currently returns error.
             $field_value = field_get_items('TripalEntity', $entity, $field);
             $field_render_arr = field_view_value('TripalEntity', $entity, $field, $field_value[0]);
             $value = render($field_render_arr);
