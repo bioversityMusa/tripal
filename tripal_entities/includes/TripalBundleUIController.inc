@@ -84,27 +84,45 @@ function tripal_entities_tripal_bundle_form($form, &$form_state, $entityDataType
   // @TODO: Move this into a css file.
   $form['#attached']['css'] = array(
     array(
-      'data' => '.form-item select, .form-item input { width:40%; }',
+      'data' => '
+        .form-item select, .form-item input { width:40%; }
+        th.side-header { width: 220px; }',
       'type' => 'inline',
     ),
   );
   
-  $form['vocab'] = array(
-    '#type' => 'select',
-    '#title' => t('Vocabulary'),
-    '#options' => array($cvterm->cv_id->name),
-    '#description' => t('The vocabulary the following term is part of.'),
-    '#default_value' => $cvterm->cv_id->name,
-    '#disabled' => TRUE  
+  $form['term'] = array(
+    '#type' => 'markup',
+    '#markup' => theme('table', array(
+      'header' => array(),
+      'rows' => array(
+        array(array('header' => TRUE, 'data' => 'Vocabulary', 'class' => array('side-header')), $cvterm->cv_id->name),
+        array(array('header' => TRUE, 'data' => 'Term', 'class' => array('side-header')), $cvterm->name),
+      )
+    )) 
   );
   
-  $form['term'] = array(
+  $form['label'] = array(
     '#type' => 'textfield',
-    '#title' => t('Term'),
-    '#description' => t('The term the content type is based on.'),
-    '#default_value' => $cvterm->name,
-    '#disabled' => TRUE  
+    '#title' => t('Name'),
+    '#required' => TRUE,
+    '#description' => t('The human-readable name of this content type. This text will be 
+      displayed as part of the list on the <em>Add new content page</em>. It is recommended that 
+      this name begin with a capital letter and contain only letters, numbers, and spaces. 
+      This name must be unique.'),
+    '#default_value' => $entity_type->label,
   );
+  
+  $form['description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Description'),
+    '#required' => TRUE,
+    '#description' => t('Describe this content type. The text will be displayed on the <em>Add new content page</em>.'),
+    '#default_value' => tripal_bundle_get_variable('description', $entity_type->id),
+  );
+  if (!$form['description']['#default_value']) {
+    //$form['description']['#default_value'] = $cvterm->definition;
+  }
   
   $form['additional_settings'] = array(
     '#type' => 'vertical_tabs',
@@ -141,6 +159,7 @@ function tripal_entities_tripal_bundle_form($form, &$form_state, $entityDataType
     '#description' => t('You may rearrange elements in this text box to customize the page
       titles. The available tokens are listed below. You can separate or include any text
       between the tokens.'),
+    '#required' => TRUE,
     '#default_value' => $title_format,
     '#rows' => 1
   );
@@ -215,9 +234,17 @@ function tripal_entities_tripal_bundle_form_validate($form, $form_state) {
 function tripal_entities_tripal_bundle_form_submit($form, &$form_state) {
   
   if ($form_state['triggering_element']['#value'] == 'Save Content Type') {
+    $bundle_entity = $form_state['build_info']['args'][0];
+  
+    // Save the label.
+    // @TODO: How should I save this?
+    
+    // Save the description.
+    tripal_bundle_save_variable('description', $form_state['values']['description']);
+    
     // Save the page title format.
     tripal_save_title_format(
-      $form_state['build_info']['args'][0], 
+      $bundle_entity, 
       $form_state['values']['set_titles']['title_format']
     );
     
