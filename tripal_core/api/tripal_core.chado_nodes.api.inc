@@ -1077,8 +1077,8 @@ function chado_cleanup_orphaned_nodes_part($table, $job_id = NULL, $nentries,
   $clsql= "
     SELECT *
     FROM {" . $linking_table . "} LT
-      INNER JOIN {node} N ON N.nid = LT.nid
-    WHERE N.type = :node_type
+      LEFT JOIN {node} N ON N.nid = LT.nid
+    WHERE N.type = :node_type OR N.nid IS NULL
     ORDER BY LT.nid LIMIT $nentries OFFSET $offset";
   $res = db_query($clsql, array(':node_type' => $node_type));
   foreach ($res as $node) {
